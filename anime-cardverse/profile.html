@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anime Cardverse | Player Profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page-enter profile-page">
+  <canvas id="particleCanvas" class="particle-canvas"></canvas>
+  <div class="light-streak streak-a"></div>
+  <div class="light-streak streak-b"></div>
+
+  <header class="top-nav glass">
+    <div class="brand">
+      <p class="brand-kicker">Player Codex</p>
+      <h1>Profile Center</h1>
+    </div>
+    <nav class="nav-links">
+      <a href="index.html" data-nav>Universe</a>
+      <a href="profile.html" data-nav>Profile</a>
+    </nav>
+  </header>
+
+  <main class="profile-layout">
+    <section class="panel profile-hero" id="profileHero">
+      <div class="profile-banner-picker">
+        <h2>Custom Banner</h2>
+        <div class="banner-options" id="bannerOptions"></div>
+      </div>
+      <div class="profile-main">
+        <img id="profileAvatar" class="avatar profile-avatar" alt="Avatar" />
+        <div>
+          <input id="nameInput" class="name-input" maxlength="18" />
+          <p id="titleText" class="title"></p>
+          <p id="levelText" class="rank"></p>
+          <div class="xp-track"><div id="xpFill" class="xp-fill"></div></div>
+          <p id="xpText"></p>
+          <label class="upload-btn" for="avatarUpload">Upload Avatar</label>
+          <input id="avatarUpload" type="file" accept="image/*" hidden />
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Top 3 Favorite Cards</h3>
+      <div id="favoriteCards" class="favorite-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h3>Lifetime Stats</h3>
+      <div id="lifetimeStats" class="lifetime-stats"></div>
+    </section>
+  </main>
+
+  <script src="profile.js"></script>
+</body>
+</html>

@@ -3,140 +3,187 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anime Cardverse</title>
+  <title>Anime Cardverse | Neon Gacha Arena</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <div class="glow glow-a"></div>
-  <div class="glow glow-b"></div>
+<body class="page-enter">
+  <canvas id="particleCanvas" class="particle-canvas"></canvas>
+  <div class="light-streak streak-a"></div>
+  <div class="light-streak streak-b"></div>
+  <div id="flashLayer" class="flash-layer"></div>
+  <div id="xpFloat" class="xp-float">+XP</div>
 
-  <header class="hero">
-    <div class="hero-top">
-      <p class="logo">Anime Cardverse</p>
-      <div class="hero-actions">
-        <span id="packStock" class="stock-pill">Packs: 5</span>
-        <button id="cycleThemeBtn" class="cta cta-theme">Theme Shift</button>
-        <button id="buyPackBtn" class="cta cta-secondary">+1 Pack</button>
-        <button id="openPackBtn" class="cta">Open Pack</button>
-      </div>
+  <header class="top-nav glass">
+    <div class="brand">
+      <p class="brand-kicker">Mythic Energy Protocol</p>
+      <h1>Anime Cardverse</h1>
     </div>
-    <h1>Collect anime legends.<br />Open cinematic card packs.</h1>
-    <p class="sub">Mythic pull rates, live fan chat, and release countdowns for upcoming shows.</p>
-    <div class="hero-chips">
-      <span>retrofuturism</span>
-      <span>kinetic color</span>
-      <span>glass + grain</span>
+    <nav class="nav-links">
+      <a href="index.html" data-nav>Universe</a>
+      <a href="profile.html" data-nav>Profile</a>
+    </nav>
+    <div class="nav-ctl">
+      <button id="musicToggle" class="pill-btn">Music: Off</button>
+      <button id="openPackBtnTop" class="pill-btn pill-primary">Open Pack</button>
     </div>
   </header>
 
-  <section class="ticker-wrap" aria-label="Upcoming anime releases">
-    <p class="ticker-label">Live Announcements</p>
-    <div id="ticker" class="ticker">Loading release feed...</div>
-  </section>
-
-  <section class="status-strip" aria-label="Live game stats">
-    <div class="status-card">
-      <p class="status-label">Total Power</p>
-      <p id="totalPower" class="status-value">0</p>
-    </div>
-    <div class="status-card">
-      <p class="status-label">Mythics Pulled</p>
-      <p id="mythicCount" class="status-value">0</p>
-    </div>
-    <div class="status-card">
-      <p class="status-label">Hype Streak</p>
-      <p id="hypeStreak" class="status-value">0 days</p>
-    </div>
-    <div class="status-card">
-      <p class="status-label">Shards</p>
-      <p id="shardStock" class="status-value">0</p>
-    </div>
-  </section>
-
-  <main class="layout">
-    <section class="panel pack-panel">
-      <div class="panel-head">
-        <h2>Pack Chamber</h2>
-        <p>Each pack reveals 3 cards with rarity-weighted odds.</p>
-      </div>
-      <div class="pack-area">
-        <div id="pack" class="pack" role="button" tabindex="0" aria-label="Open anime pack">
-          <span>MYTHIC ANIME PACK</span>
+  <main class="elite-grid">
+    <section class="left-column">
+      <article class="panel profile-card">
+        <div class="profile-top">
+          <img id="profileAvatar" class="avatar" alt="Avatar" />
+          <div>
+            <p id="profileRank" class="rank">Diamond Rank</p>
+            <h2 id="profileName" class="username">NeonHunter</h2>
+            <p id="profileTitle" class="title">Mythic Hunter</p>
+          </div>
         </div>
-      </div>
-      <div id="revealGrid" class="reveal-grid"></div>
-    </section>
-
-    <section class="panel collection-panel">
-      <div class="panel-head panel-head-row">
-        <div>
-          <h2>Your Collection</h2>
-          <p id="collectionCount">0 cards collected</p>
+        <div class="xp-wrap">
+          <div class="xp-row"><span>LV <strong id="playerLevel">1</strong></span><span id="xpText">0 / 100 XP</span></div>
+          <div class="xp-track"><div id="xpFill" class="xp-fill"></div></div>
         </div>
-        <button id="clearCollectionBtn" class="ghost-btn">Reset</button>
-      </div>
-      <div class="filter-row">
-        <label for="rarityFilter">Filter</label>
-        <select id="rarityFilter">
-          <option value="All">All Rarities</option>
-          <option value="Mythic">Mythic</option>
-          <option value="Legendary">Legendary</option>
-          <option value="Epic">Epic</option>
-          <option value="Ultra">Ultra</option>
-          <option value="Rare">Rare</option>
-        </select>
-      </div>
-      <div id="collectionGrid" class="collection-grid"></div>
-    </section>
+      </article>
 
-    <section class="panel chat-panel">
-      <div class="panel-head">
-        <h2>Fan Chatroom</h2>
-        <p>Live synced across browser tabs on your machine.</p>
-      </div>
-      <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
-      <form id="chatForm" class="chat-form">
-        <input id="chatName" type="text" maxlength="18" value="You" aria-label="Display name" />
-        <input id="chatInput" type="text" maxlength="180" placeholder="Type your message..." required />
-        <button type="submit">Send</button>
-      </form>
-    </section>
-
-    <section class="panel live-panel">
-      <div class="panel-head">
-        <h2>Live Arena</h2>
-        <p>Global pull feed and mission rewards update in real time.</p>
-      </div>
-      <div class="live-grid">
-        <div class="mini-panel">
-          <h3>Global Pulls</h3>
-          <div id="globalFeed" class="global-feed"></div>
-        </div>
-        <div class="mini-panel">
+      <article class="panel">
+        <div class="panel-title-row">
           <h3>Daily Missions</h3>
-          <div id="missions" class="missions"></div>
         </div>
-      </div>
+        <div id="missionList" class="mission-list"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Achievement Badges</h3>
+        <div id="badgeList" class="badge-list"></div>
+      </article>
+    </section>
+
+    <section class="center-column">
+      <article class="panel featured-banner" id="featuredBanner">
+        <div>
+          <p class="event-chip">LIVE EVENT</p>
+          <h2 id="eventTitle">Neon Rift Summon Festival</h2>
+          <p id="eventDesc">Drop rates surge for limited event cards.</p>
+        </div>
+        <div class="event-meta">
+          <p id="eventCountdownMain">Starts in --:--:--</p>
+          <p id="eventPhase">Phase: Pre-Event</p>
+        </div>
+      </article>
+
+      <article class="panel pack-chamber">
+        <div class="chamber-head">
+          <div>
+            <h2>Pack Chamber</h2>
+            <p id="packStockText">Packs: 5 | Energy Boosters: 3</p>
+          </div>
+          <div class="chamber-actions">
+            <button id="openPackBtn" class="pill-btn pill-primary">Open Mythic Pack</button>
+            <button id="buyPackBtn" class="pill-btn">Buy Pack (120 shards)</button>
+          </div>
+        </div>
+
+        <div id="packStage" class="pack-stage">
+          <div id="packModel" class="pack-model">
+            <div class="pack-face front">MYTHIC<br />PACK</div>
+            <div class="pack-face back">CARDVERSE</div>
+          </div>
+          <div id="mythicBurst" class="mythic-burst"></div>
+        </div>
+
+        <div class="odds-grid">
+          <p><span>Rare</span> 57%</p>
+          <p><span>Epic</span> 28%</p>
+          <p><span>Legendary</span> 11%</p>
+          <p><span>Mythic</span> 4%</p>
+        </div>
+
+        <div class="recent-pulls-wrap">
+          <p class="label">Recent Pulls</p>
+          <div id="recentPullsTicker" class="recent-pulls-ticker">Initializing summon feed...</div>
+        </div>
+
+        <div id="revealRow" class="reveal-row"></div>
+      </article>
+
+      <article class="panel collection-panel">
+        <div class="panel-title-row">
+          <h3>Collection Vault</h3>
+          <p id="collectionStats">0 cards | Power 0 | Shards 0</p>
+        </div>
+        <div id="collectionGrid" class="collection-grid"></div>
+      </article>
+    </section>
+
+    <section class="right-column">
+      <article class="panel chat-panel">
+        <div class="panel-title-row"><h3>Live Chat</h3></div>
+        <div id="chatFeed" class="chat-feed"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatName" maxlength="18" placeholder="Name" value="You" />
+          <input id="chatInput" maxlength="180" placeholder="Type message..." required />
+          <button type="submit">Send</button>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title-row"><h3>Top Power Players</h3></div>
+        <div id="leaderboard" class="leaderboard"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title-row"><h3>Event Countdown</h3></div>
+        <p id="eventCountdownSide" class="countdown-side">--:--:--</p>
+        <div class="history-head">
+          <h4>Pack History</h4>
+        </div>
+        <div id="historyLog" class="history-log"></div>
+      </article>
     </section>
   </main>
 
   <template id="cardTemplate">
-    <article class="anime-card">
-      <div class="rarity-pill"></div>
-      <div class="card-art-wrap">
-        <img class="card-art" alt="" loading="lazy" />
+    <article class="gacha-card" role="button" tabindex="0">
+      <div class="card-top">
+        <p class="rarity-badge"></p>
+        <p class="logo-badge"></p>
       </div>
-      <h3></h3>
-      <p class="series"></p>
-      <p class="power"></p>
+      <div class="art-wrap">
+        <img class="card-art" alt="" loading="lazy" />
+        <div class="art-overlay"></div>
+      </div>
+      <h4 class="card-name"></h4>
+      <p class="ability"></p>
+      <div class="card-bottom">
+        <div class="power-meter"><span></span></div>
+        <div class="energy-slots"></div>
+      </div>
+      <button class="energy-btn">Attach Energy</button>
+      <span class="limited-chip">LIMITED</span>
     </article>
   </template>
 
-  <div id="toast" class="toast" aria-live="polite"></div>
+  <div id="inspectModal" class="inspect-modal" aria-hidden="true">
+    <div class="inspect-backdrop" data-close></div>
+    <div class="inspect-card-wrap">
+      <button class="inspect-close" data-close>Close</button>
+      <div id="inspectCardHost"></div>
+    </div>
+  </div>
 
-  <script src="script.js"></script>
+  <div id="dailyReward" class="reward-modal" aria-hidden="true">
+    <div class="reward-card">
+      <h3>Daily Login Reward</h3>
+      <p id="rewardText">+1 Pack | +50 Shards | +1 Energy Booster</p>
+      <button id="collectRewardBtn" class="pill-btn pill-primary">Collect</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
 </body>
 </html>
