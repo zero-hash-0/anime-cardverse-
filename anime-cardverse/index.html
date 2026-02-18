@@ -18,17 +18,42 @@
       <p class="logo">Anime Cardverse</p>
       <div class="hero-actions">
         <span id="packStock" class="stock-pill">Packs: 5</span>
+        <button id="cycleThemeBtn" class="cta cta-theme">Theme Shift</button>
         <button id="buyPackBtn" class="cta cta-secondary">+1 Pack</button>
         <button id="openPackBtn" class="cta">Open Pack</button>
       </div>
     </div>
     <h1>Collect anime legends.<br />Open cinematic card packs.</h1>
     <p class="sub">Mythic pull rates, live fan chat, and release countdowns for upcoming shows.</p>
+    <div class="hero-chips">
+      <span>retrofuturism</span>
+      <span>kinetic color</span>
+      <span>glass + grain</span>
+    </div>
   </header>
 
   <section class="ticker-wrap" aria-label="Upcoming anime releases">
     <p class="ticker-label">Live Announcements</p>
     <div id="ticker" class="ticker">Loading release feed...</div>
+  </section>
+
+  <section class="status-strip" aria-label="Live game stats">
+    <div class="status-card">
+      <p class="status-label">Total Power</p>
+      <p id="totalPower" class="status-value">0</p>
+    </div>
+    <div class="status-card">
+      <p class="status-label">Mythics Pulled</p>
+      <p id="mythicCount" class="status-value">0</p>
+    </div>
+    <div class="status-card">
+      <p class="status-label">Hype Streak</p>
+      <p id="hypeStreak" class="status-value">0 days</p>
+    </div>
+    <div class="status-card">
+      <p class="status-label">Shards</p>
+      <p id="shardStock" class="status-value">0</p>
+    </div>
   </section>
 
   <main class="layout">
@@ -79,6 +104,23 @@
         <button type="submit">Send</button>
       </form>
     </section>
+
+    <section class="panel live-panel">
+      <div class="panel-head">
+        <h2>Live Arena</h2>
+        <p>Global pull feed and mission rewards update in real time.</p>
+      </div>
+      <div class="live-grid">
+        <div class="mini-panel">
+          <h3>Global Pulls</h3>
+          <div id="globalFeed" class="global-feed"></div>
+        </div>
+        <div class="mini-panel">
+          <h3>Daily Missions</h3>
+          <div id="missions" class="missions"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <template id="cardTemplate">
@@ -89,6 +131,8 @@
       <p class="power"></p>
     </article>
   </template>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
 
   <script src="script.js"></script>
 </body>
