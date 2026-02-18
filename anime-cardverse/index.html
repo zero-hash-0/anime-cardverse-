@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anime Cardverse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="glow glow-a"></div>
+  <div class="glow glow-b"></div>
+
+  <header class="hero">
+    <div class="hero-top">
+      <p class="logo">Anime Cardverse</p>
+      <div class="hero-actions">
+        <span id="packStock" class="stock-pill">Packs: 5</span>
+        <button id="buyPackBtn" class="cta cta-secondary">+1 Pack</button>
+        <button id="openPackBtn" class="cta">Open Pack</button>
+      </div>
+    </div>
+    <h1>Collect anime legends.<br />Open cinematic card packs.</h1>
+    <p class="sub">Mythic pull rates, live fan chat, and release countdowns for upcoming shows.</p>
+  </header>
+
+  <section class="ticker-wrap" aria-label="Upcoming anime releases">
+    <p class="ticker-label">Live Announcements</p>
+    <div id="ticker" class="ticker">Loading release feed...</div>
+  </section>
+
+  <main class="layout">
+    <section class="panel pack-panel">
+      <div class="panel-head">
+        <h2>Pack Chamber</h2>
+        <p>Each pack reveals 3 cards with rarity-weighted odds.</p>
+      </div>
+      <div class="pack-area">
+        <div id="pack" class="pack" role="button" tabindex="0" aria-label="Open anime pack">
+          <span>MYTHIC ANIME PACK</span>
+        </div>
+      </div>
+      <div id="revealGrid" class="reveal-grid"></div>
+    </section>
+
+    <section class="panel collection-panel">
+      <div class="panel-head panel-head-row">
+        <div>
+          <h2>Your Collection</h2>
+          <p id="collectionCount">0 cards collected</p>
+        </div>
+        <button id="clearCollectionBtn" class="ghost-btn">Reset</button>
+      </div>
+      <div class="filter-row">
+        <label for="rarityFilter">Filter</label>
+        <select id="rarityFilter">
+          <option value="All">All Rarities</option>
+          <option value="Mythic">Mythic</option>
+          <option value="Legendary">Legendary</option>
+          <option value="Epic">Epic</option>
+          <option value="Ultra">Ultra</option>
+          <option value="Rare">Rare</option>
+        </select>
+      </div>
+      <div id="collectionGrid" class="collection-grid"></div>
+    </section>
+
+    <section class="panel chat-panel">
+      <div class="panel-head">
+        <h2>Fan Chatroom</h2>
+        <p>Live synced across browser tabs on your machine.</p>
+      </div>
+      <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
+      <form id="chatForm" class="chat-form">
+        <input id="chatName" type="text" maxlength="18" value="You" aria-label="Display name" />
+        <input id="chatInput" type="text" maxlength="180" placeholder="Type your message..." required />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <template id="cardTemplate">
+    <article class="anime-card">
+      <div class="rarity-pill"></div>
+      <h3></h3>
+      <p class="series"></p>
+      <p class="power"></p>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
