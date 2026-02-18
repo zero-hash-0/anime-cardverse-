@@ -20,6 +20,19 @@ const releaseSchedule = [
 ];
 
 const globalNames = ["Akira", "Nobu", "Yuna", "Sora", "Kento", "Mika", "Ren", "Aoi"];
+const artProfiles = {
+  Naruto: { a: "#ff9f4a", b: "#f64f7f", c: "#7a2cff", sigil: "LEAF" },
+  "Attack on Titan": { a: "#8d6e63", b: "#3f3a59", c: "#d84315", sigil: "TITAN" },
+  Bleach: { a: "#6a5acd", b: "#1f2a6f", c: "#56ccf2", sigil: "SOUL" },
+  "One Piece": { a: "#00c6ff", b: "#0072ff", c: "#ffd166", sigil: "SEA" },
+  "Jujutsu Kaisen": { a: "#7f5af0", b: "#2cb67d", c: "#94a1b2", sigil: "CURSE" },
+  "My Hero Academia": { a: "#f3d250", b: "#ee6c4d", c: "#3d5a80", sigil: "HERO" },
+  "Fullmetal Alchemist": { a: "#d4a373", b: "#b08968", c: "#3b3b58", sigil: "ALCH" },
+  "Demon Slayer": { a: "#2a9d8f", b: "#264653", c: "#e76f51", sigil: "FLAME" },
+  "Death Note": { a: "#6d6875", b: "#1b1b2f", c: "#f8f9fa", sigil: "NOTE" },
+  "Chainsaw Man": { a: "#f94144", b: "#577590", c: "#f3722c", sigil: "SAW" },
+  "Hunter x Hunter": { a: "#43aa8b", b: "#577590", c: "#f9c74f", sigil: "HUNT" }
+};
 const themes = [
   {
     name: "Neo Tokyo",
@@ -194,12 +207,42 @@ function randomCards(total) {
   return Array.from({ length: total }, () => drawCard());
 }
 
+function createCardArtDataUri(card) {
+  const profile = artProfiles[card.series] || { a: "#7c4dff", b: "#1a237e", c: "#ff8a65", sigil: "ANIME" };
+  const svg = `
+<svg xmlns='http://www.w3.org/2000/svg' width='400' height='240' viewBox='0 0 400 240'>
+  <defs>
+    <linearGradient id='g1' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0%' stop-color='${profile.a}'/>
+      <stop offset='50%' stop-color='${profile.b}'/>
+      <stop offset='100%' stop-color='${profile.c}'/>
+    </linearGradient>
+    <radialGradient id='g2' cx='0.2' cy='0.2' r='0.8'>
+      <stop offset='0%' stop-color='rgba(255,255,255,.5)'/>
+      <stop offset='100%' stop-color='rgba(255,255,255,0)'/>
+    </radialGradient>
+  </defs>
+  <rect width='400' height='240' fill='url(#g1)'/>
+  <rect width='400' height='240' fill='url(#g2)'/>
+  <circle cx='320' cy='68' r='42' fill='rgba(255,255,255,.22)'/>
+  <path d='M0,190 C110,120 220,220 400,120 L400,240 L0,240 Z' fill='rgba(0,0,0,.22)'/>
+  <path d='M28 30 L166 30 L122 112 L10 112 Z' fill='rgba(255,255,255,.16)'/>
+  <path d='M240 30 L380 30 L352 122 L218 122 Z' fill='rgba(255,255,255,.11)'/>
+  <text x='22' y='212' fill='rgba(255,255,255,.95)' font-family='Arial Black, Arial, sans-serif' font-size='30'>${profile.sigil}</text>
+  <text x='22' y='232' fill='rgba(255,255,255,.9)' font-family='Arial, sans-serif' font-size='15'>${card.series}</text>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 function buildCard(card, delay = 0) {
   const node = cardTemplate.content.firstElementChild.cloneNode(true);
   node.style.animationDelay = `${delay}ms`;
   node.querySelector("h3").textContent = card.name;
   node.querySelector(".series").textContent = `Series: ${card.series}`;
   node.querySelector(".power").textContent = `Power: ${card.power}`;
+  const art = node.querySelector(".card-art");
+  art.src = createCardArtDataUri(card);
+  art.alt = `${card.series} card art`;
 
   const pill = node.querySelector(".rarity-pill");
   const style = rarityStyles[card.rarity] || rarityStyles.Rare;
