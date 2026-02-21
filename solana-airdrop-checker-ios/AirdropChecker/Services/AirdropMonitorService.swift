@@ -36,6 +36,7 @@ final class AirdropMonitorService {
             let risk = riskScoring.evaluate(eventDelta: token.amount - oldAmount, metadata: metadata)
 
             events.append(AirdropEvent(
+                wallet: wallet,
                 mint: token.mint,
                 oldAmount: oldAmount,
                 newAmount: token.amount,

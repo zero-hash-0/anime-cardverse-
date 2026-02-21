@@ -1,0 +1,50 @@
+name: AirdropChecker
+options:
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0
+
+targets:
+  AirdropChecker:
+    type: application
+    platform: iOS
+    sources:
+      - path: AirdropChecker
+        excludes:
+          - "**/*.plist"
+    info:
+      path: AirdropChecker/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hectorruiz.airdropchecker
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: NO
+
+  AirdropCheckerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AirdropCheckerTests
+    dependencies:
+      - target: AirdropChecker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hectorruiz.airdropchecker.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  AirdropChecker:
+    build:
+      targets:
+        AirdropChecker: all
+        AirdropCheckerTests: [test]
+    test:
+      targets:
+        - AirdropCheckerTests
+    run:
+      config: Debug

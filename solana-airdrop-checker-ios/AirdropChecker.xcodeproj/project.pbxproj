@@ -1,0 +1,499 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		16469F49EB84A381E57A2D46 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC8F7807A428528A4E4BF78 /* DashboardViewModel.swift */; };
+		241C4CE057AA09C9CBEBB6DF /* AirdropMonitorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653A1BA41DB984D24AA2C427 /* AirdropMonitorService.swift */; };
+		277DC42C414AFF24FEDAEC95 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBACFEDE05F73BE44F3B53F /* ContentView.swift */; };
+		2E1CDD9FCFA72B5CDB319DAF /* TokenMetadataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94AB171921BEC106E5648E5 /* TokenMetadataService.swift */; };
+		54D8F43C2234010238C285D5 /* EventHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8785FF73BFCE778F8C4426 /* EventHistoryStore.swift */; };
+		71FD62B4DD02E1822CEA92F5 /* AddressValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E327CB1C5B25D60AC3194C /* AddressValidatorTests.swift */; };
+		7A0197DF58F1BF3F1ED5BBC7 /* TokenBalance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB9696783BB3A3D4FFD8D0C /* TokenBalance.swift */; };
+		7DB6D8D593BC441BCF2A7126 /* WalletSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED813BAAE79D3C97E50EF669 /* WalletSessionManager.swift */; };
+		89325B13F3A9B6D1AF2B8B73 /* SolanaRPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D9A3AEB77B7EAB8C29853 /* SolanaRPCClient.swift */; };
+		8E1A70C0DF5587D55DDC713F /* ClaimRiskScoringService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4ECD6AE8930DD4BA21D712C /* ClaimRiskScoringService.swift */; };
+		93E4FAB27D709D5A3A8C8748 /* AirdropMonitorServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF8E8E4AEB610BC11604935 /* AirdropMonitorServiceTests.swift */; };
+		9C5EC7D4E2602433961E3BE4 /* WalletInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F315D9017E6FAB52C969765 /* WalletInputView.swift */; };
+		C537BCA2A9513A3B1C7EF808 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36483AE60CBD65DCCD8D0E83 /* NotificationManager.swift */; };
+		C8728363968718892ED7E460 /* EventHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCC06FEDF15A15CFD23676F /* EventHistoryStoreTests.swift */; };
+		C8E4F34611B1AD6C98E88CF9 /* AddressValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A34CC0676662853B1EB0A0 /* AddressValidator.swift */; };
+		CA9568FC711D4B02B16D0EDB /* AirdropListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D5AFCC49E7E214DD40B026 /* AirdropListView.swift */; };
+		D9E91EB492BB0C76FC105E4D /* ClaimRiskScoringServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CAE51053132EDD976D6290 /* ClaimRiskScoringServiceTests.swift */; };
+		F6D49E80E8597886691BA27E /* AirdropCheckerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56C607932B424AE537035E6 /* AirdropCheckerApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7F8D0842EA07EBE49391B7E0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A9FEE6787DB7DF53630545BE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 73FD08327458CF0DE2F18BA5;
+			remoteInfo = AirdropChecker;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0DBACFEDE05F73BE44F3B53F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		32D5AFCC49E7E214DD40B026 /* AirdropListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirdropListView.swift; sourceTree = "<group>"; };
+		34CAE51053132EDD976D6290 /* ClaimRiskScoringServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimRiskScoringServiceTests.swift; sourceTree = "<group>"; };
+		36483AE60CBD65DCCD8D0E83 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		3734C6EEF010FB4811AC472D /* AirdropChecker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AirdropChecker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		49E327CB1C5B25D60AC3194C /* AddressValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressValidatorTests.swift; sourceTree = "<group>"; };
+		4DB9696783BB3A3D4FFD8D0C /* TokenBalance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenBalance.swift; sourceTree = "<group>"; };
+		4EC8F7807A428528A4E4BF78 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		5EF8E8E4AEB610BC11604935 /* AirdropMonitorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirdropMonitorServiceTests.swift; sourceTree = "<group>"; };
+		5F315D9017E6FAB52C969765 /* WalletInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletInputView.swift; sourceTree = "<group>"; };
+		653A1BA41DB984D24AA2C427 /* AirdropMonitorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirdropMonitorService.swift; sourceTree = "<group>"; };
+		9FCC06FEDF15A15CFD23676F /* EventHistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHistoryStoreTests.swift; sourceTree = "<group>"; };
+		A94AB171921BEC106E5648E5 /* TokenMetadataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMetadataService.swift; sourceTree = "<group>"; };
+		B16D9A3AEB77B7EAB8C29853 /* SolanaRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolanaRPCClient.swift; sourceTree = "<group>"; };
+		D4ECD6AE8930DD4BA21D712C /* ClaimRiskScoringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimRiskScoringService.swift; sourceTree = "<group>"; };
+		E56C607932B424AE537035E6 /* AirdropCheckerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirdropCheckerApp.swift; sourceTree = "<group>"; };
+		ED813BAAE79D3C97E50EF669 /* WalletSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletSessionManager.swift; sourceTree = "<group>"; };
+		EF8785FF73BFCE778F8C4426 /* EventHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHistoryStore.swift; sourceTree = "<group>"; };
+		F8A34CC0676662853B1EB0A0 /* AddressValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
+		FC041565397DA947AE027B29 /* AirdropCheckerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AirdropCheckerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1E967E1D082E62D92448B2E8 = {
+			isa = PBXGroup;
+			children = (
+				C26943BBF7F2C2A6FAD8DA84 /* AirdropChecker */,
+				CF017241551156A6192D9B11 /* AirdropCheckerTests */,
+				24CC13DF6E86C6A1A7AF06FE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		24CC13DF6E86C6A1A7AF06FE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3734C6EEF010FB4811AC472D /* AirdropChecker.app */,
+				FC041565397DA947AE027B29 /* AirdropCheckerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		32A5AC992979108291E07F08 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				4EC8F7807A428528A4E4BF78 /* DashboardViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		764E4572821CB2E54A4C3F6D /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				4DB9696783BB3A3D4FFD8D0C /* TokenBalance.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8B3990F16C9D03BEFC536114 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				32D5AFCC49E7E214DD40B026 /* AirdropListView.swift */,
+				5F315D9017E6FAB52C969765 /* WalletInputView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		90982B87D542EB46751FBB20 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				653A1BA41DB984D24AA2C427 /* AirdropMonitorService.swift */,
+				D4ECD6AE8930DD4BA21D712C /* ClaimRiskScoringService.swift */,
+				EF8785FF73BFCE778F8C4426 /* EventHistoryStore.swift */,
+				36483AE60CBD65DCCD8D0E83 /* NotificationManager.swift */,
+				B16D9A3AEB77B7EAB8C29853 /* SolanaRPCClient.swift */,
+				A94AB171921BEC106E5648E5 /* TokenMetadataService.swift */,
+				ED813BAAE79D3C97E50EF669 /* WalletSessionManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A8D92FDF698185109ED0DD49 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				F8A34CC0676662853B1EB0A0 /* AddressValidator.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		C26943BBF7F2C2A6FAD8DA84 /* AirdropChecker */ = {
+			isa = PBXGroup;
+			children = (
+				E56C607932B424AE537035E6 /* AirdropCheckerApp.swift */,
+				0DBACFEDE05F73BE44F3B53F /* ContentView.swift */,
+				764E4572821CB2E54A4C3F6D /* Models */,
+				90982B87D542EB46751FBB20 /* Services */,
+				A8D92FDF698185109ED0DD49 /* Utils */,
+				32A5AC992979108291E07F08 /* ViewModels */,
+				8B3990F16C9D03BEFC536114 /* Views */,
+			);
+			path = AirdropChecker;
+			sourceTree = "<group>";
+		};
+		CF017241551156A6192D9B11 /* AirdropCheckerTests */ = {
+			isa = PBXGroup;
+			children = (
+				49E327CB1C5B25D60AC3194C /* AddressValidatorTests.swift */,
+				5EF8E8E4AEB610BC11604935 /* AirdropMonitorServiceTests.swift */,
+				34CAE51053132EDD976D6290 /* ClaimRiskScoringServiceTests.swift */,
+				9FCC06FEDF15A15CFD23676F /* EventHistoryStoreTests.swift */,
+			);
+			path = AirdropCheckerTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		73FD08327458CF0DE2F18BA5 /* AirdropChecker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D64CCF0B276B0E15A8380E1B /* Build configuration list for PBXNativeTarget "AirdropChecker" */;
+			buildPhases = (
+				75141D7423A4961BAD742C05 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AirdropChecker;
+			packageProductDependencies = (
+			);
+			productName = AirdropChecker;
+			productReference = 3734C6EEF010FB4811AC472D /* AirdropChecker.app */;
+			productType = "com.apple.product-type.application";
+		};
+		90D6E76280A8C03E79652E6C /* AirdropCheckerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9E298278AA2BD561F9BBCF0D /* Build configuration list for PBXNativeTarget "AirdropCheckerTests" */;
+			buildPhases = (
+				9CFAE99BB99087E5D3573640 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0ADE82DE7F1D036D1A35B49D /* PBXTargetDependency */,
+			);
+			name = AirdropCheckerTests;
+			packageProductDependencies = (
+			);
+			productName = AirdropCheckerTests;
+			productReference = FC041565397DA947AE027B29 /* AirdropCheckerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A9FEE6787DB7DF53630545BE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					73FD08327458CF0DE2F18BA5 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 7E2D56D9BFCBD88F9DC67393 /* Build configuration list for PBXProject "AirdropChecker" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1E967E1D082E62D92448B2E8;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				73FD08327458CF0DE2F18BA5 /* AirdropChecker */,
+				90D6E76280A8C03E79652E6C /* AirdropCheckerTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		75141D7423A4961BAD742C05 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8E4F34611B1AD6C98E88CF9 /* AddressValidator.swift in Sources */,
+				F6D49E80E8597886691BA27E /* AirdropCheckerApp.swift in Sources */,
+				CA9568FC711D4B02B16D0EDB /* AirdropListView.swift in Sources */,
+				241C4CE057AA09C9CBEBB6DF /* AirdropMonitorService.swift in Sources */,
+				8E1A70C0DF5587D55DDC713F /* ClaimRiskScoringService.swift in Sources */,
+				277DC42C414AFF24FEDAEC95 /* ContentView.swift in Sources */,
+				16469F49EB84A381E57A2D46 /* DashboardViewModel.swift in Sources */,
+				54D8F43C2234010238C285D5 /* EventHistoryStore.swift in Sources */,
+				C537BCA2A9513A3B1C7EF808 /* NotificationManager.swift in Sources */,
+				89325B13F3A9B6D1AF2B8B73 /* SolanaRPCClient.swift in Sources */,
+				7A0197DF58F1BF3F1ED5BBC7 /* TokenBalance.swift in Sources */,
+				2E1CDD9FCFA72B5CDB319DAF /* TokenMetadataService.swift in Sources */,
+				9C5EC7D4E2602433961E3BE4 /* WalletInputView.swift in Sources */,
+				7DB6D8D593BC441BCF2A7126 /* WalletSessionManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9CFAE99BB99087E5D3573640 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				71FD62B4DD02E1822CEA92F5 /* AddressValidatorTests.swift in Sources */,
+				93E4FAB27D709D5A3A8C8748 /* AirdropMonitorServiceTests.swift in Sources */,
+				D9E91EB492BB0C76FC105E4D /* ClaimRiskScoringServiceTests.swift in Sources */,
+				C8728363968718892ED7E460 /* EventHistoryStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0ADE82DE7F1D036D1A35B49D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 73FD08327458CF0DE2F18BA5 /* AirdropChecker */;
+			targetProxy = 7F8D0842EA07EBE49391B7E0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3EDFFB5B3FE65EB2C81EADD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		8FD05CE6AA15D67DA0E1737D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AirdropChecker/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hectorruiz.airdropchecker;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B54BCDEDBE315BA1067CE097 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		DD93966B02392BCADD2B2B63 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hectorruiz.airdropchecker.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AirdropChecker.app/AirdropChecker";
+			};
+			name = Release;
+		};
+		E8E286DFD3AC4475A26D59D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AirdropChecker/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hectorruiz.airdropchecker;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E9C2E5E9D7E0C2A4DE374C16 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hectorruiz.airdropchecker.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AirdropChecker.app/AirdropChecker";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7E2D56D9BFCBD88F9DC67393 /* Build configuration list for PBXProject "AirdropChecker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3EDFFB5B3FE65EB2C81EADD9 /* Debug */,
+				B54BCDEDBE315BA1067CE097 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9E298278AA2BD561F9BBCF0D /* Build configuration list for PBXNativeTarget "AirdropCheckerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9C2E5E9D7E0C2A4DE374C16 /* Debug */,
+				DD93966B02392BCADD2B2B63 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D64CCF0B276B0E15A8380E1B /* Build configuration list for PBXNativeTarget "AirdropChecker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E8E286DFD3AC4475A26D59D2 /* Debug */,
+				8FD05CE6AA15D67DA0E1737D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A9FEE6787DB7DF53630545BE /* Project object */;
+}

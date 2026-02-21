@@ -15,7 +15,8 @@ struct AirdropCheckerApp: App {
                         riskScoring: ClaimRiskScoringService()
                     ),
                     notificationManager: notificationManager,
-                    walletSession: walletSession
+                    walletSession: walletSession,
+                    historyStore: EventHistoryStore()
                 )
             )
         }
