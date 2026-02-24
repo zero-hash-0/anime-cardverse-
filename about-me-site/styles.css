@@ -375,6 +375,17 @@ h1 {
 }
 
 @media (max-width: 980px) {
+  .page {
+    margin: 0 auto 30px;
+    width: 100vw;
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+
+  .hero-shell {
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+
   .window-back,
   .window-front {
     transform: none;
@@ -403,20 +414,10 @@ h1 {
 }
 
 @media (max-width: 640px) {
-  .page {
-    margin: 0 auto 30px;
-    width: 100vw;
-    padding-top: max(env(safe-area-inset-top), 0px);
-  }
-
   .window-bar,
   .top-nav,
   .hero-grid {
     padding-inline: 14px;
-  }
-
-  .hero-shell {
-    margin-bottom: 20px;
   }
 
   .top-nav {
