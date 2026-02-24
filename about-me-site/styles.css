@@ -404,14 +404,19 @@ h1 {
 
 @media (max-width: 640px) {
   .page {
-    margin-top: 18px;
-    width: min(96vw, 520px);
+    margin: 0 auto 30px;
+    width: 100vw;
+    padding-top: max(env(safe-area-inset-top), 0px);
   }
 
   .window-bar,
   .top-nav,
   .hero-grid {
     padding-inline: 14px;
+  }
+
+  .hero-shell {
+    margin-bottom: 20px;
   }
 
   .top-nav {
