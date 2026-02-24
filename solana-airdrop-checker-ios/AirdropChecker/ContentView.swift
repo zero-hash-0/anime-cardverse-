@@ -85,6 +85,7 @@ struct ContentView: View {
                             VStack(spacing: 16) {
                                 header
                                 topSectionPills
+                                contextChipRail
 
                                 if bottomTab == .home {
                                     featuredMissionCard
@@ -262,15 +263,9 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RadarTheme.Palette.backgroundTop.opacity(0.94))
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 0.5)
-        }
     }
 
     private func circleNavButton(systemName: String) -> some View {
@@ -288,64 +283,73 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        ZStack(alignment: .leading) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("RADAR")
-                    .font(RadarTheme.Typography.hero)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                RadarTheme.Palette.textPrimary,
-                                RadarTheme.Palette.accent
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .shadow(color: RadarTheme.Palette.accent.opacity(0.18), radius: 8, y: 0)
-
-                Text("Track Solana drops, risk alerts, and live market momentum.")
-                    .font(RadarTheme.Typography.body)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Hello \(profileDisplayName)")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
+            Text("Get ready")
+                .font(.caption)
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
+            Text("RADAR")
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
+            Text("Track Solana drops, risk alerts, and live market momentum.")
+                .font(RadarTheme.Typography.body)
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var topSectionPills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(TopSection.allCases) { section in
-                    let active = topSection == section
-                    Button {
-                        withAnimation(.spring(response: 0.30, dampingFraction: 0.84)) {
-                            topSection = section
-                            bottomTab = section == .checker ? .checker : .home
-                        }
-                    } label: {
-                        Text(section.rawValue)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(active ? RadarTheme.Palette.accent.opacity(0.24) : RadarTheme.Palette.surface)
-                            .overlay(
-                                Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.45) : RadarTheme.Palette.stroke, lineWidth: 1)
-                            )
-                            .clipShape(Capsule())
+        HStack(spacing: 10) {
+            ForEach(TopSection.allCases) { section in
+                let active = topSection == section
+                Button {
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.84)) {
+                        topSection = section
+                        bottomTab = section == .checker ? .checker : .home
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    Text(section.rawValue)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(active ? Color.black.opacity(0.9) : RadarTheme.Palette.textSecondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(active ? RadarTheme.Palette.accent : RadarTheme.Palette.surfaceStrong.opacity(0.65))
+                        .overlay(
+                            Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.40) : RadarTheme.Palette.stroke, lineWidth: 1)
+                        )
+                        .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
             }
-            .padding(6)
-            .background(RadarTheme.Palette.surfaceStrong.opacity(0.75))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var contextChipRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Text("New")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.black.opacity(0.9))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(RadarTheme.Palette.accent)
+                    .clipShape(Capsule())
+                ForEach(["Fast", "Risk", "Watchlist", "On-chain"], id: \.self) { chip in
+                    Text(chip)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(RadarTheme.Palette.surface)
+                        .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                        .clipShape(Capsule())
+                }
+            }
+        }
     }
 
     private var featuredMissionCard: some View {
@@ -353,23 +357,43 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.black.opacity(0.72), Color.black.opacity(0.42)],
+                        colors: [Color.black.opacity(0.76), Color.black.opacity(0.46)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .overlay(
-                    LinearGradient(
-                        colors: [RadarTheme.Palette.accent.opacity(0.18), .clear, .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                )
+                .overlay(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [RadarTheme.Palette.accent.opacity(0.28), .clear],
+                                startPoint: .topLeading,
+                                endPoint: .center
+                            )
+                        )
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
                 )
+
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: 120)
+                    .overlay(
+                        Image(systemName: "chart.xyaxis.line")
+                            .font(.system(size: 48, weight: .light))
+                            .foregroundStyle(Color.white.opacity(0.22))
+                    )
+                Spacer()
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("New Update")
@@ -398,7 +422,7 @@ struct ContentView: View {
             }
             .padding(14)
         }
-        .frame(height: 190)
+        .frame(height: 250)
         .shadow(color: Color.black.opacity(0.25), radius: 12, y: 6)
     }
 
@@ -672,33 +696,9 @@ struct ContentView: View {
     }
 
     private var bottomActionBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             dockTabButton(.home, icon: "house")
-            dockTabButton(.activity, icon: "clock.arrow.circlepath")
-
-            Button {
-                bottomTab = .checker
-                topSection = .checker
-                Task { await viewModel.refresh() }
-            } label: {
-                HStack(spacing: 4) {
-                    if viewModel.isLoading {
-                        ProgressView().tint(.black)
-                    } else {
-                        Image(systemName: "scope")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    Text("Scan")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundStyle(.black.opacity(0.92))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(themeLime)
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-
+            dockTabButton(.activity, icon: "calendar")
             dockTabButton(.checker, icon: "scope")
             dockTabButton(.profile, icon: "person")
         }
@@ -719,6 +719,9 @@ struct ContentView: View {
             withAnimation(.spring(response: 0.30, dampingFraction: 0.85)) {
                 bottomTab = tab
                 topSection = tab == .checker ? .checker : .dashboard
+            }
+            if tab == .checker {
+                Task { await viewModel.refresh() }
             }
         } label: {
             HStack(spacing: 6) {
