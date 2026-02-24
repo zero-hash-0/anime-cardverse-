@@ -25,9 +25,6 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var topSection: TopSection = .checker
     @State private var showAdvancedControls = false
-    @State private var animateBackground = false
-    @State private var animateHeroGlow = false
-    @State private var showHeroRadar = false
     @State private var showProfileEditor = false
     @State private var bottomTab: BottomDockTab = .home
 
@@ -35,12 +32,12 @@ struct ContentView: View {
     @AppStorage("profileStatusLine") private var profileStatusLine = "Get ready"
     @AppStorage("profileAvatarBase64") private var profileAvatarBase64 = ""
 
-    private let themeBase = Color(red: 0.03, green: 0.03, blue: 0.04)
-    private let themeMid = Color(red: 0.06, green: 0.06, blue: 0.07)
-    private let themeDeep = Color(red: 0.01, green: 0.01, blue: 0.01)
-    private let themeLime = Color(red: 0.83, green: 0.98, blue: 0.14)
-    private let themeLimeSoft = Color(red: 0.70, green: 0.90, blue: 0.15)
-    private let themeCard = Color(red: 0.09, green: 0.09, blue: 0.10)
+    private let themeBase = RadarTheme.Palette.backgroundTop
+    private let themeMid = Color(red: 0.02, green: 0.05, blue: 0.13)
+    private let themeDeep = RadarTheme.Palette.backgroundBottom
+    private let themeLime = RadarTheme.Palette.accent
+    private let themeLimeSoft = RadarTheme.Palette.accentAlt
+    private let themeCard = RadarTheme.Palette.surface
 
     init(viewModel: DashboardViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -60,7 +57,22 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea()
 
-                FloatingBubblesBackground(animate: animateBackground)
+                RadialGradient(
+                    colors: [themeLime.opacity(0.24), .clear],
+                    center: .topLeading,
+                    startRadius: 20,
+                    endRadius: 340
+                )
+                .blur(radius: 14)
+                .ignoresSafeArea()
+
+                RadialGradient(
+                    colors: [themeLimeSoft.opacity(0.18), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 40,
+                    endRadius: 320
+                )
+                .blur(radius: 12)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -118,6 +130,7 @@ struct ContentView: View {
                             if bottomTab == .profile {
                                 profileHubCard
                                 securityCenterCard
+                                themePreviewCard
                             }
 
                             if viewModel.selectedFilter == .history || viewModel.selectedFilter == .highRisk {
@@ -151,15 +164,6 @@ struct ContentView: View {
         }
         .task {
             await viewModel.onAppear()
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
-                animateBackground.toggle()
-            }
-            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                animateHeroGlow.toggle()
-            }
-            showHeroRadar = true
         }
         .onDisappear {
             viewModel.onDisappear()
@@ -197,11 +201,11 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(profileDisplayName)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(RadarTheme.Palette.textPrimary)
                             .lineLimit(1)
                         Text(profileStatusLine)
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.62))
+                            .foregroundStyle(RadarTheme.Palette.textSecondary)
                             .lineLimit(1)
                     }
                 }
@@ -232,40 +236,35 @@ struct ContentView: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white.opacity(0.88))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
                 .frame(width: 34, height: 34)
-                .background(Color.white.opacity(0.08))
+                .background(RadarTheme.Palette.surfaceStrong)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+                .overlay(Circle().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
 
     private var header: some View {
         ZStack(alignment: .leading) {
-            RadarHeroBackdrop(animate: showHeroRadar)
-                .frame(height: 88)
-                .allowsHitTesting(false)
-
             VStack(alignment: .leading, spacing: 4) {
                 Text("RADAR")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(RadarTheme.Typography.hero)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                Color.white,
-                                themeLime
+                                RadarTheme.Palette.textPrimary,
+                                RadarTheme.Palette.accent
                             ],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
-                    .shadow(color: themeLime.opacity(animateHeroGlow ? 0.40 : 0.14), radius: animateHeroGlow ? 16 : 8, y: 0)
-                    .scaleEffect(animateHeroGlow ? 1.008 : 0.995)
+                    .shadow(color: RadarTheme.Palette.accent.opacity(0.24), radius: 12, y: 0)
 
                 Text("Track Solana drops, risk alerts, and live market momentum.")
-                    .font(.callout)
-                    .foregroundStyle(Color.white.opacity(0.7))
+                    .font(RadarTheme.Typography.body)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -284,10 +283,13 @@ struct ContentView: View {
                     } label: {
                         Text(section.rawValue)
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(active ? Color.black.opacity(0.9) : .white.opacity(0.8))
+                            .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(active ? themeLime : Color.white.opacity(0.08))
+                            .background(active ? RadarTheme.Palette.accent.opacity(0.22) : RadarTheme.Palette.surface)
+                            .overlay(
+                                Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.55) : RadarTheme.Palette.stroke, lineWidth: 1)
+                            )
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -382,6 +384,45 @@ struct ContentView: View {
                 .stroke(themeLime.opacity(0.22), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var themePreviewCard: some View {
+        VStack(alignment: .leading, spacing: RadarTheme.Spacing.sm) {
+            Text("Theme Preview")
+                .font(RadarTheme.Typography.headline)
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
+
+            Text("Glass surfaces, focused accents, and cleaner hierarchy.")
+                .font(RadarTheme.Typography.caption)
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
+
+            HStack(spacing: RadarTheme.Spacing.xs) {
+                Text("Primary")
+                    .font(RadarTheme.Typography.caption.weight(.bold))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        LinearGradient(
+                            colors: [RadarTheme.Palette.accent, RadarTheme.Palette.accentAlt],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+
+                Text("Secondary")
+                    .font(RadarTheme.Typography.caption.weight(.semibold))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RadarTheme.Palette.surface)
+                    .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(RadarTheme.Spacing.sm)
+        .radarGlassCard()
     }
 
     private var quickActionsCard: some View {
@@ -630,9 +671,12 @@ struct ContentView: View {
         } label: {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(active ? Color.black.opacity(0.9) : Color.white.opacity(0.76))
+                .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
                 .frame(width: 34, height: 34)
-                .background(active ? themeLime : Color.white.opacity(0.08))
+                .background(active ? RadarTheme.Palette.accent.opacity(0.20) : RadarTheme.Palette.surface)
+                .overlay(
+                    Circle().stroke(active ? RadarTheme.Palette.accent.opacity(0.5) : RadarTheme.Palette.stroke, lineWidth: 1)
+                )
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
