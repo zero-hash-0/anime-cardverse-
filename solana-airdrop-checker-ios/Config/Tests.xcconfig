@@ -1,0 +1,2 @@
+PRODUCT_BUNDLE_IDENTIFIER = com.hectorruiz.airdropchecker.tests
+SWIFT_VERSION = 5.0

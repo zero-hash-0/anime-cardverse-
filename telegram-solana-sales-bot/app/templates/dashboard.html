@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}GeckoPulse · Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">Garage Control</p>
+    <h1>Operational dashboard</h1>
+    <p class="lead">Tune the live configuration for your Tensor-only Galactic Geckos alert pipeline.</p>
+  </div>
+  <a class="btn ghost" href="/status">Check Status</a>
+</section>
+
+{% if notice %}
+<section class="notice success">{{ notice }}</section>
+{% endif %}
+{% if error %}
+<section class="notice error">{{ error }}</section>
+{% endif %}
+
+<section class="panel-grid">
+  <div class="panel-card reveal">
+    <div class="panel-header">Telegram</div>
+    <div class="panel-line"><span>Bot token</span><strong>{{ config.bot_token or "Not set" }}</strong></div>
+    <div class="panel-line"><span>Chat ID</span><strong>{{ config.chat_id }}</strong></div>
+    <div class="panel-footer">Set in your .env file.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">Webhook</div>
+    <div class="panel-line"><span>Path</span><strong>{{ config.webhook_path }}</strong></div>
+    <div class="panel-line"><span>Mintlist URL</span><strong>{{ config.mintlist_url }}</strong></div>
+    <div class="panel-footer">Helius enhanced webhook should POST here.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">Filters</div>
+    <div class="panel-line"><span>Marketplace</span><strong>{{ config.watch_sources }}</strong></div>
+    <div class="panel-line"><span>Mints loaded</span><strong>{{ config.watch_mints_count }}</strong></div>
+    <div class="panel-footer">Defaults to Tensor only.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">Helius</div>
+    <div class="panel-line"><span>API Key</span><strong>{{ config.helius_api_key or "Not set" }}</strong></div>
+    <div class="panel-footer">Used for metadata images + traits.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">Tensor</div>
+    <div class="panel-line"><span>Collection ID</span><strong>{{ config.tensor_collection_id or "Not set" }}</strong></div>
+    <div class="panel-footer">Used for floor price + delta.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">HowRare</div>
+    <div class="panel-line"><span>API Key</span><strong>{{ config.howrare_api_key or "Not set" }}</strong></div>
+    <div class="panel-footer">Used for rarity badges.</div>
+  </div>
+
+  <div class="panel-card reveal">
+    <div class="panel-header">Listings</div>
+    <div class="panel-line"><span>Alerts</span><strong>{{ config.send_listing_alerts }}</strong></div>
+    <div class="panel-footer">Enable listing alerts in Telegram.</div>
+  </div>
+</section>
+
+<section class="form-shell">
+  <div>
+    <h2>Configuration center</h2>
+    <p>Update your live configuration. Sensitive values are written to `.env` and applied immediately.</p>
+  </div>
+  <form class="form-grid" method="post" action="/dashboard/update">
+    <label>
+      <span>Telegram Bot Token</span>
+      <input name="telegram_bot_token" type="password" placeholder="Enter bot token" />
+    </label>
+    <label>
+      <span>Telegram Chat ID</span>
+      <input name="telegram_chat_id" type="text" placeholder="{{ config.chat_id }}" />
+    </label>
+    <label>
+      <span>Mintlist URL</span>
+      <input name="watch_mintlist_url" type="text" placeholder="{{ config.mintlist_url }}" />
+    </label>
+    <label>
+      <span>Marketplace</span>
+      <input name="watch_sources" type="text" placeholder="{{ config.watch_sources }}" />
+    </label>
+    <label>
+      <span>Helius API Key</span>
+      <input name="helius_api_key" type="password" placeholder="Set API key" />
+    </label>
+    <label>
+      <span>Tensor Collection ID</span>
+      <input name="tensor_collection_id" type="text" placeholder="Optional (for floor)" />
+    </label>
+    <label>
+      <span>HowRare API Key</span>
+      <input name="howrare_api_key" type="password" placeholder="Optional (for rarity)" />
+    </label>
+    <label>
+      <span>Send Listing Alerts</span>
+      <input name="send_listing_alerts" type="text" placeholder="true or false" />
+    </label>
+    <label>
+      <span>Admin User</span>
+      <input name="admin_user" type="text" placeholder="Keep current" />
+    </label>
+    <label>
+      <span>Admin Password</span>
+      <input name="admin_password" type="password" placeholder="Keep current" />
+    </label>
+    <div class="form-actions">
+      <button class="btn primary" type="submit">Save configuration</button>
+      <button class="btn ghost" type="submit" formaction="/dashboard/test">Send test message</button>
+      <button class="btn ghost" type="submit" formaction="/dashboard/simulate">Simulate sale</button>
+      <button class="btn ghost" type="submit" formaction="/dashboard/simulate-listing">Simulate listing</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

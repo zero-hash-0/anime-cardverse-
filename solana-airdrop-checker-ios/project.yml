@@ -2,11 +2,10 @@ name: AirdropChecker
 options:
   deploymentTarget:
     iOS: "16.0"
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 1.0
 
 targets:
   AirdropChecker:
@@ -18,11 +17,11 @@ targets:
           - "**/*.plist"
     info:
       path: AirdropChecker/Info.plist
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.hectorruiz.airdropchecker
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: ""
         GENERATE_INFOPLIST_FILE: NO
 
   AirdropCheckerTests:
@@ -32,9 +31,11 @@ targets:
       - path: AirdropCheckerTests
     dependencies:
       - target: AirdropChecker
+    configFiles:
+      Debug: Config/Tests.xcconfig
+      Release: Config/Tests.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.hectorruiz.airdropchecker.tests
         GENERATE_INFOPLIST_FILE: YES
 
 schemes:
@@ -48,3 +49,5 @@ schemes:
         - AirdropCheckerTests
     run:
       config: Debug
+    archive:
+      config: Release

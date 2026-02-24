@@ -7,10 +7,12 @@ SwiftUI iOS app that monitors Solana token balance changes, flags likely airdrop
 - Wallet connect/disconnect with persisted wallet session
 - Solana JSON-RPC integration (`getTokenAccountsByOwner`) for SPL balances
 - Snapshot-based delta detection for newly received/increased token balances
-- Token metadata enrichment with endpoint cache + fallback
+- Token metadata enrichment with multi-source merge (Jupiter + Solana token list + on-demand fallback)
 - Claim risk scoring (`low`, `medium`, `high`) with reasons and score
 - Local notifications for newly detected events
 - Persistent airdrop history feed with search/filtering
+- Watchlist favorites + hidden token controls
+- Jupiter portfolio panel (net worth, top holdings, staked JUP) with API-key sync
 - Event detail view with copy-mint and Solscan open actions
 - Optional foreground auto-scan loop every 10 minutes
 - Unit tests for validator, risk scoring, delta detection, and history store
@@ -32,6 +34,12 @@ Source is ready to wire into an Xcode app target, but this folder still does not
 ## Deep link format
 
 `airdropchecker://wallet?address=<SOLANA_WALLET_ADDRESS>`
+
+## Jupiter API key setup (for portfolio sync)
+
+1. Generate key at `https://portal.jup.ag`.
+2. In the app, open `Advanced` and paste key into `Jupiter API key`.
+3. Tap `Save API Key`, then `Sync Jupiter Data`.
 
 ## This-week release checklist
 

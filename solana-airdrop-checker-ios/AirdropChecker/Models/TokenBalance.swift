@@ -2,6 +2,7 @@ import Foundation
 
 enum EventFeedFilter: String, CaseIterable, Identifiable {
     case latest
+    case watchlist
     case history
     case highRisk
 
@@ -11,7 +12,8 @@ enum EventFeedFilter: String, CaseIterable, Identifiable {
         switch self {
         case .latest: return "Latest"
         case .history: return "History"
-        case .highRisk: return "High Risk"
+        case .highRisk: return "Risk"
+        case .watchlist: return "Watchlist"
         }
     }
 }
@@ -27,9 +29,65 @@ struct TokenMetadata: Codable, Hashable {
     let symbol: String
     let name: String
     let logoURL: URL?
+    let tags: [String]
+    let websiteURL: URL?
+    let coingeckoID: String?
+    let verified: Bool
+
+    init(
+        mint: String,
+        symbol: String,
+        name: String,
+        logoURL: URL?,
+        tags: [String] = [],
+        websiteURL: URL? = nil,
+        coingeckoID: String? = nil,
+        verified: Bool = false
+    ) {
+        self.mint = mint
+        self.symbol = symbol
+        self.name = name
+        self.logoURL = logoURL
+        self.tags = tags
+        self.websiteURL = websiteURL
+        self.coingeckoID = coingeckoID
+        self.verified = verified
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mint
+        case symbol
+        case name
+        case logoURL
+        case tags
+        case websiteURL
+        case coingeckoID
+        case verified
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mint = try container.decode(String.self, forKey: .mint)
+        symbol = try container.decode(String.self, forKey: .symbol)
+        name = try container.decode(String.self, forKey: .name)
+        logoURL = try container.decodeIfPresent(URL.self, forKey: .logoURL)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        websiteURL = try container.decodeIfPresent(URL.self, forKey: .websiteURL)
+        coingeckoID = try container.decodeIfPresent(String.self, forKey: .coingeckoID)
+        verified = try container.decodeIfPresent(Bool.self, forKey: .verified) ?? false
+    }
 
     static func fallback(mint: String) -> TokenMetadata {
-        TokenMetadata(mint: mint, symbol: shortMint(mint), name: "Unknown Token", logoURL: nil)
+        TokenMetadata(
+            mint: mint,
+            symbol: shortMint(mint),
+            name: "Unknown Token",
+            logoURL: nil,
+            tags: ["unverified"],
+            websiteURL: nil,
+            coingeckoID: nil,
+            verified: false
+        )
     }
 
     private static func shortMint(_ value: String) -> String {

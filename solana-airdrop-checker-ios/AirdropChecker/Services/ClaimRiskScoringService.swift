@@ -21,6 +21,16 @@ struct ClaimRiskScoringService: ClaimRiskScoring {
             reasons.append("Token metadata not found in trusted list.")
         }
 
+        if !metadata.verified {
+            score += 15
+            reasons.append("Token is not marked verified in aggregated metadata sources.")
+        }
+
+        if metadata.logoURL == nil {
+            score += 8
+            reasons.append("Token has no known logo; manually verify mint before interacting.")
+        }
+
         if suspiciousKeywords.contains(where: { symbolLower.contains($0) || nameLower.contains($0) }) {
             score += 35
             reasons.append("Token name/symbol contains common scam keywords.")
@@ -34,6 +44,11 @@ struct ClaimRiskScoringService: ClaimRiskScoring {
         if metadata.symbol.count > 10 {
             score += 10
             reasons.append("Unusually long token symbol.")
+        }
+
+        if metadata.tags.contains("nft") || metadata.tags.contains("collectible") {
+            score += 7
+            reasons.append("Token is tagged as NFT/collectible; claim prompts may differ from fungible token drops.")
         }
 
         let level: ClaimRiskLevel

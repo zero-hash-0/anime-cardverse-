@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}GeckoPulse · Status{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">Runtime</p>
+    <h1>Signal status</h1>
+    <p class="lead">Telemetry for your webhook pipeline and recent Tensor-only sales.</p>
+  </div>
+  <a class="btn ghost" href="/dashboard">Open Dashboard</a>
+</section>
+
+<section class="ticker-shell reveal">
+  <div class="ticker">
+    <div class="ticker-label">Latest Sale</div>
+    <div id="tickerContent">
+      {% if recent_sales | length > 0 %}
+        {% set latest = recent_sales[0] %}
+        <div class="ticker-item">
+          <div class="ticker-image">
+            {% if latest.image %}
+              <img src="{{ latest.image }}" alt="{{ latest.name }}" loading="lazy" />
+            {% else %}
+              <div class="preview-fallback">GG</div>
+            {% endif %}
+          </div>
+          <div class="ticker-info">
+            <strong>{{ latest.name }}</strong>
+            <span>{{ latest.price }} · {{ latest.marketplace }}</span>
+            {% if latest.tags %}
+              <span class="tags">
+                {% for tag in latest.tags %}
+                  <em>{{ tag }}</em>
+                {% endfor %}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="ticker-empty">Waiting for the first sale.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="spotlight">
+    <div class="spotlight-label">Spotlight</div>
+    <div id="spotlightContent">
+      {% if recent_sales | length > 0 %}
+        {% set latest = recent_sales[0] %}
+        <div class="spotlight-card">
+          <div class="spotlight-image">
+            {% if latest.image %}
+              <img src="{{ latest.image }}" alt="{{ latest.name }}" loading="lazy" />
+            {% else %}
+              <div class="preview-fallback">GG</div>
+            {% endif %}
+          </div>
+          <div class="spotlight-info">
+            <h3>{{ latest.name }}</h3>
+            <p>{{ latest.price }} · {{ latest.marketplace }}</p>
+            {% if latest.traits %}
+              <div class="traits">
+                {% for trait in latest.traits %}
+                  <em>{{ trait }}</em>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="spotlight-empty">No sales yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="metrics">
+  <div class="metric-card reveal">
+    <div class="metric-title">Sales Seen</div>
+    <div class="metric-value" id="salesSeen">{{ stats.sales_seen }}</div>
+  </div>
+  <div class="metric-card reveal">
+    <div class="metric-title">Alerts Sent</div>
+    <div class="metric-value" id="salesSent">{{ stats.sales_sent }}</div>
+  </div>
+  <div class="metric-card reveal">
+    <div class="metric-title">Last Sale</div>
+    <div class="metric-value" id="lastEvent">{{ stats.last_event_time }}</div>
+  </div>
+  <div class="metric-card reveal">
+    <div class="metric-title">Mintlist Size</div>
+    <div class="metric-value" id="mintCount">{{ stats.watch_mints_count }}</div>
+  </div>
+  <div class="metric-card reveal">
+    <div class="metric-title">24h Volume</div>
+    <div class="metric-value" id="volume24h">{{ stats.volume_24h }}</div>
+    <div class="stat-caption">SOL tracked</div>
+  </div>
+  <div class="metric-card reveal">
+    <div class="metric-title">24h Sales</div>
+    <div class="metric-value" id="sales24h">{{ stats.sales_24h }}</div>
+  </div>
+</section>
+
+<section class="status-grid">
+  <div class="panel-card reveal">
+    <div class="panel-header">Active Filters</div>
+    <div class="panel-line"><span>Marketplace</span><strong id="watchSources">{{ stats.watch_sources | join(", ") }}</strong></div>
+    <div class="panel-line"><span>Mintlist URL</span><strong id="mintlistUrl">{{ stats.mintlist_url }}</strong></div>
+    <div class="panel-footer">Telegram alerts only fire on matching sales.</div>
+  </div>
+  <div class="panel-card glow reveal">
+    <div class="panel-header">Webhook Health</div>
+    <div class="panel-line"><span>Status</span><strong>Online</strong></div>
+    <div class="panel-line"><span>Endpoint</span><strong>/webhook/helius</strong></div>
+    <div class="panel-footer">Use /health for uptime checks.</div>
+  </div>
+</section>
+
+<section class="chart-shell reveal">
+  <div class="table-header">
+    <h2>Price pulse</h2>
+    <span>Recent Tensor sales</span>
+  </div>
+  <canvas id="salesChart" height="120"></canvas>
+</section>
+
+<section class="table-shell">
+  <div class="table-header">
+    <h2>Recent sales</h2>
+    <span id="salesCount">{{ recent_sales | length }} events</span>
+  </div>
+  <div class="table">
+    <div class="table-row header">
+      <span>Preview</span>
+      <span>Name</span>
+      <span>Price</span>
+      <span>Marketplace</span>
+      <span>Buyer</span>
+      <span>Time</span>
+    </div>
+    <div id="recentSales">
+      {% for sale in recent_sales %}
+      <div class="table-row">
+        <span class="preview">
+          {% if sale.image %}
+          <img src="{{ sale.image }}" alt="{{ sale.name }}" loading="lazy" />
+          {% else %}
+          <div class="preview-fallback">GG</div>
+          {% endif %}
+        </span>
+        <span>
+          {{ sale.name }}
+          {% if sale.traits %}
+          <span class="traits">
+            {% for trait in sale.traits %}
+            <em>{{ trait }}</em>
+            {% endfor %}
+          </span>
+          {% endif %}
+          {% if sale.tags %}
+          <span class="tags">
+            {% for tag in sale.tags %}
+            <em>{{ tag }}</em>
+            {% endfor %}
+          </span>
+          {% endif %}
+        </span>
+        <span>{{ sale.price }}</span>
+        <span>{{ sale.marketplace }}</span>
+        <span>{{ sale.buyer }}</span>
+        <span>{{ sale.timestamp }}</span>
+      </div>
+      {% endfor %}
+      {% if recent_sales | length == 0 %}
+      <div class="table-empty">No sales recorded yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="table-shell">
+  <div class="table-header">
+    <h2>Recent listings</h2>
+    <span id="listingCount">{{ recent_listings | length }} events</span>
+  </div>
+  <div class="table">
+    <div class="table-row header">
+      <span>Preview</span>
+      <span>Name</span>
+      <span>Price</span>
+      <span>Marketplace</span>
+      <span>Seller</span>
+      <span>Time</span>
+    </div>
+    <div id="recentListings">
+      {% for listing in recent_listings %}
+      <div class="table-row">
+        <span class="preview">
+          {% if listing.image %}
+          <img src="{{ listing.image }}" alt="{{ listing.name }}" loading="lazy" />
+          {% else %}
+          <div class="preview-fallback">GG</div>
+          {% endif %}
+        </span>
+        <span>
+          {{ listing.name }}
+          {% if listing.traits %}
+          <span class="traits">
+            {% for trait in listing.traits %}
+            <em>{{ trait }}</em>
+            {% endfor %}
+          </span>
+          {% endif %}
+        </span>
+        <span>{{ listing.price }}</span>
+        <span>{{ listing.marketplace }}</span>
+        <span>{{ listing.seller }}</span>
+        <span>{{ listing.timestamp }}</span>
+      </div>
+      {% endfor %}
+      {% if recent_listings | length == 0 %}
+      <div class="table-empty">No listings recorded yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+<div class="build-id">Build: {{ build_id }}</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>window.__recentSales = {{ recent_sales | tojson }};</script>
+{% endblock %}

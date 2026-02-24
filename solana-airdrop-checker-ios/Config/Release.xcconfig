@@ -1,0 +1,3 @@
+#include "Common.xcconfig"
+SWIFT_COMPILATION_MODE = wholemodule
+SWIFT_OPTIMIZATION_LEVEL = -O

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}GeckoPulse · Overview{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-content">
+    <p class="eyebrow">Galactic Gecko Space Garage</p>
+    <h1 class="hero-glow">Racing-grade sales intel for the Space Garage.</h1>
+    <p class="lead">
+      GeckoPulse streams Tensor marketplace sales into Telegram with mintlist validation and
+      faction-grade filters, tuned for the 10,000 space racing geckos.
+    </p>
+    <div class="hero-actions">
+      <a class="btn primary" href="/dashboard">Open Dashboard</a>
+      <a class="btn ghost" href="/status">View Status</a>
+    </div>
+    <p class="quote">“Faster, Faster, until the thrill of speed overcomes the fear of death.”</p>
+    <div class="hero-stats">
+      <div class="stat-card reveal">
+        <div class="stat-title">Sales Seen</div>
+        <div class="stat-value" data-count>{{ stats.sales_seen }}</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-title">Alerts Sent</div>
+        <div class="stat-value" data-count>{{ stats.sales_sent }}</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-title">Mintlist</div>
+        <div class="stat-value">{{ stats.watch_mints_count }}</div>
+        <div class="stat-caption">Mint addresses loaded</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-panel">
+    <div class="panel-card glow signal-card">
+      <div class="panel-header">Live Signal Snapshot</div>
+      <div class="panel-line"><span>Marketplace</span><strong>Tensor</strong></div>
+      <div class="panel-line"><span>Collection</span><strong>Galactic Geckos</strong></div>
+      <div class="panel-line"><span>Mintlist</span><strong>HowRare</strong></div>
+      <div class="panel-line"><span>Last Sale</span><strong>{{ stats.last_event_time }}</strong></div>
+      <div class="panel-footer">Signals arrive within seconds of on-chain execution.</div>
+    </div>
+  </div>
+</section>
+
+<section class="factions">
+  <div class="faction-card reveal">
+    <div class="badge">Targari</div>
+    <h3>Cutting-edge tech</h3>
+    <p>Scientists and engineers pushing deep-space innovation.</p>
+  </div>
+  <div class="faction-card reveal">
+    <div class="badge teal">Barada</div>
+    <h3>Warrior culture</h3>
+    <p>Hardened fighters forged in the meteor cloud.</p>
+  </div>
+  <div class="faction-card reveal">
+    <div class="badge lime">Martu</div>
+    <h3>Political intrigue</h3>
+    <p>Power plays, strategy, and shifting alliances.</p>
+  </div>
+  <div class="faction-card reveal">
+    <div class="badge amber">Alura</div>
+    <h3>Mythic heroes</h3>
+    <p>Legends and champions with larger-than-life flair.</p>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="grid-card reveal">
+    <h3>Precision filters</h3>
+    <p>Filter by marketplace, mintlist, and collection scope with zero noise. Defaults to Tensor only.</p>
+  </div>
+  <div class="grid-card reveal">
+    <h3>Resilient webhook</h3>
+    <p>De-duped delivery for retries and a fast path to Telegram. Designed for high-velocity sales.</p>
+  </div>
+  <div class="grid-card reveal">
+    <h3>Operator control</h3>
+    <p>Stay confident with clear status pages and visibility into alert throughput.</p>
+  </div>
+</section>
+
+<section class="callout">
+  <div>
+    <h2>Ready to surface the fastest signal?</h2>
+    <p>Plug in your Telegram token, connect the Helius webhook, and go live.</p>
+  </div>
+  <a class="btn primary" href="/dashboard">Configure Now</a>
+</section>
+{% endblock %}

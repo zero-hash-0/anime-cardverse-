@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}GeckoPulse{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/site.css?v=4" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="page">
+    <header class="nav">
+      <div class="brand">
+        <div class="brand-mark">
+          <div class="brand-eye"></div>
+        </div>
+        <div>
+          <div class="brand-title">GeckoPulse</div>
+          <div class="brand-sub">Signal garage for Galactic Geckos</div>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="/">Overview</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/status">Status</a>
+      </nav>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer class="footer">
+      <div>Solana sales telemetry · Built for precision alerts</div>
+      <div class="footer-links">
+        <span>Webhook: /webhook/helius</span>
+        <span>Status: /health</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/js/site.js?v=4"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
