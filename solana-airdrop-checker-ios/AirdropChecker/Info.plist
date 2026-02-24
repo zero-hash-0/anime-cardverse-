@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>20</string>
+	<string>21</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID is used to unlock advanced security controls and protect stored API settings.</string>
 	<key>UIDeviceFamily</key>
