@@ -38,6 +38,7 @@ struct ContentView: View {
     private let themeLime = RadarTheme.Palette.accent
     private let themeLimeSoft = RadarTheme.Palette.accentAlt
     private let themeCard = RadarTheme.Palette.surface
+    private let dockHeight: CGFloat = 72
 
     init(viewModel: DashboardViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -145,7 +146,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
-                        .padding(.bottom, 32)
+                        .padding(.bottom, dockHeight + proxy.safeAreaInsets.bottom + 24)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .refreshable {
@@ -160,6 +161,22 @@ struct ContentView: View {
                 bottomActionBar
                     .padding(.horizontal, 16)
                     .padding(.bottom, 4)
+            }
+            .overlay(alignment: .topTrailing) {
+#if DEBUG
+                Text(buildLabel)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(RadarTheme.Palette.surface)
+                    .overlay(
+                        Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+                    .padding(.top, 6)
+                    .padding(.trailing, 16)
+#endif
             }
         }
         .task {
@@ -189,6 +206,12 @@ struct ContentView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    private var buildLabel: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "v\(version) (\(build))"
     }
 
     private var topNav: some View {
@@ -295,6 +318,13 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(6)
+            .background(RadarTheme.Palette.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -304,43 +334,51 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.black, Color(red: 0.12, green: 0.12, blue: 0.12)],
+                        colors: [RadarTheme.Palette.surfaceStrong, RadarTheme.Palette.surface],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(themeLime.opacity(0.26), lineWidth: 1)
+                        .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
                 )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("New Update")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Text("Let’s crush your wallet risk profile today.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
                 HStack(spacing: 8) {
                     Label("15 min", systemImage: "clock")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.10))
+                        .background(RadarTheme.Palette.surface)
+                        .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                         .clipShape(Capsule())
                     Spacer()
                     Image(systemName: "arrow.up.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.black.opacity(0.9))
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
                         .padding(8)
-                        .background(themeLime)
+                        .background(
+                            LinearGradient(
+                                colors: [RadarTheme.Palette.accent, RadarTheme.Palette.accentAlt],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(Circle())
                 }
             }
             .padding(14)
         }
         .frame(height: 190)
+        .shadow(color: Color.black.opacity(0.25), radius: 12, y: 6)
     }
 
     private var profileHubCard: some View {
@@ -454,13 +492,13 @@ struct ContentView: View {
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
             }
-            .foregroundStyle(.white.opacity(0.92))
+            .foregroundStyle(RadarTheme.Palette.textPrimary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
-            .background(Color.white.opacity(0.08))
+            .background(RadarTheme.Palette.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
@@ -474,12 +512,7 @@ struct ContentView: View {
             snapshotItem(title: "Watchlist", value: "\(viewModel.watchlistCount)", subtitle: "Starred mints")
         }
         .padding(12)
-        .background(Color.white.opacity(0.05))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .radarGlassCard(cornerRadius: 16)
     }
 
     private var smartInsightsCard: some View {
@@ -487,14 +520,15 @@ struct ContentView: View {
             HStack {
                 Text("Smart Insights")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Spacer()
                 Text(insightStatusTitle)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(insightStatusColor)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(insightStatusColor.opacity(0.18))
+                    .background(RadarTheme.Palette.surface)
+                    .overlay(Capsule().stroke(insightStatusColor.opacity(0.6), lineWidth: 1))
                     .clipShape(Capsule())
             }
 
@@ -515,27 +549,27 @@ struct ContentView: View {
             )
         }
         .padding(12)
-        .background(Color.white.opacity(0.05))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .radarGlassCard(cornerRadius: 16)
     }
 
     private func insightRow(title: String, value: String, isGood: Bool) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isGood ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(isGood ? Color(red: 0.08, green: 0.84, blue: 0.58) : Color(red: 0.96, green: 0.80, blue: 0.46))
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: isGood ? "checkmark" : "exclamationmark")
+                .foregroundStyle(isGood ? RadarTheme.Palette.success : RadarTheme.Palette.warning)
                 .font(.caption)
-                .padding(.top, 2)
+                .frame(width: 18, height: 18)
+                .padding(5)
+                .background(RadarTheme.Palette.surface)
+                .overlay(Circle().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                .clipShape(Circle())
+                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Text(value)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.67))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             }
             Spacer()
         }
@@ -548,9 +582,9 @@ struct ContentView: View {
     }
 
     private var insightStatusColor: Color {
-        if threatPercentage >= 45 { return Color(red: 1.0, green: 0.36, blue: 0.36) }
-        if threatPercentage >= 20 { return Color(red: 0.96, green: 0.80, blue: 0.46) }
-        return Color(red: 0.08, green: 0.84, blue: 0.58)
+        if threatPercentage >= 45 { return RadarTheme.Palette.danger }
+        if threatPercentage >= 20 { return RadarTheme.Palette.warning }
+        return RadarTheme.Palette.success
     }
 
     private var recentActivityCard: some View {
@@ -558,17 +592,17 @@ struct ContentView: View {
             HStack {
                 Text("Recent Activity")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Spacer()
                 Text("\(min(3, viewModel.displayedEvents.count)) items")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             }
 
             if viewModel.displayedEvents.isEmpty {
                 Text("No activity yet. Run a scan to generate a timeline.")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             } else {
                 ForEach(Array(viewModel.displayedEvents.prefix(3).enumerated()), id: \.element.id) { _, event in
                     activityRow(event)
@@ -576,12 +610,7 @@ struct ContentView: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.05))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .radarGlassCard(cornerRadius: 16)
     }
 
     private func activityRow(_ event: AirdropEvent) -> some View {
@@ -592,10 +621,10 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(event.metadata.symbol) +\(event.delta.description)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.56))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             }
             Spacer()
             Text(event.risk.level.title)
@@ -751,9 +780,9 @@ struct ContentView: View {
 
     private var summaryBoard: some View {
         HStack(spacing: 10) {
-            summaryItem(title: "Total Events", value: "\(viewModel.totalDetectedCount)", tone: Color.white.opacity(0.08))
-            summaryItem(title: "Watchlist", value: "\(viewModel.watchlistCount)", tone: Color(red: 0.96, green: 0.78, blue: 0.34).opacity(0.18))
-            summaryItem(title: "High Risk", value: "\(viewModel.highRiskCount)", tone: Color(red: 1.0, green: 0.36, blue: 0.36).opacity(0.16))
+            summaryItem(title: "Total Events", value: "\(viewModel.totalDetectedCount)", tone: RadarTheme.Palette.surface)
+            summaryItem(title: "Watchlist", value: "\(viewModel.watchlistCount)", tone: RadarTheme.Palette.accent.opacity(0.18))
+            summaryItem(title: "High Risk", value: "\(viewModel.highRiskCount)", tone: RadarTheme.Palette.warning.opacity(0.18))
         }
     }
 
@@ -761,10 +790,10 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.52))
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
             Text(value)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -783,20 +812,22 @@ struct ContentView: View {
                     viewModel.connectWallet()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color(red: 0.08, green: 0.84, blue: 0.58))
+                .foregroundStyle(RadarTheme.Palette.success)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color(red: 0.08, green: 0.84, blue: 0.58).opacity(0.16))
+                .background(RadarTheme.Palette.success.opacity(0.16))
+                .overlay(Capsule().stroke(RadarTheme.Palette.success.opacity(0.55), lineWidth: 1))
                 .clipShape(Capsule())
 
                 Button("Disconnect") {
                     viewModel.disconnectWallet()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color(red: 1.0, green: 0.36, blue: 0.36))
+                .foregroundStyle(RadarTheme.Palette.danger)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color(red: 1.0, green: 0.36, blue: 0.36).opacity(0.16))
+                .background(RadarTheme.Palette.danger.opacity(0.16))
+                .overlay(Capsule().stroke(RadarTheme.Palette.danger.opacity(0.55), lineWidth: 1))
                 .clipShape(Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -832,10 +863,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(Color.white.opacity(0.08))
+                .background(RadarTheme.Palette.surface)
+                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                 .clipShape(Capsule())
             }
 
@@ -846,7 +878,7 @@ struct ContentView: View {
             } label: {
                 HStack {
                     if viewModel.isLoading {
-                        ProgressView().tint(.black)
+                        ProgressView().tint(RadarTheme.Palette.textPrimary)
                     }
                     Text(viewModel.isLoading ? "Scanning..." : "Scan for Airdrops")
                         .fontWeight(.semibold)
@@ -855,12 +887,12 @@ struct ContentView: View {
                 .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.black.opacity(0.9))
+            .foregroundStyle(RadarTheme.Palette.textPrimary)
             .background(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.62, green: 0.92, blue: 1.0),
-                        Color(red: 0.33, green: 0.86, blue: 1.0)
+                        RadarTheme.Palette.accent,
+                        RadarTheme.Palette.accentAlt
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -870,8 +902,7 @@ struct ContentView: View {
                 Capsule()
                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
-            .shadow(color: Color(red: 0.96, green: 0.78, blue: 0.34).opacity(0.35), radius: 14, y: 4)
-            .shadow(color: Color(red: 0.33, green: 0.86, blue: 1.0).opacity(0.30), radius: 14, y: 4)
+            .shadow(color: RadarTheme.Palette.accent.opacity(0.32), radius: 12, y: 5)
             .clipShape(Capsule())
             .disabled(viewModel.isLoading)
 
@@ -881,35 +912,35 @@ struct ContentView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .padding(11)
-                        .foregroundStyle(.white)
-                        .background(Color.white.opacity(0.06))
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .background(RadarTheme.Palette.surface)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
 
                     HStack(spacing: 14) {
                         Toggle("Alerts", isOn: $viewModel.notificationsEnabled)
                             .toggleStyle(.switch)
-                            .tint(Color(red: 0.08, green: 0.84, blue: 0.58))
+                            .tint(RadarTheme.Palette.success)
                             .onChange(of: viewModel.notificationsEnabled) { _ in
                                 viewModel.persistNotificationPreference()
                             }
 
                         Toggle("Auto", isOn: $viewModel.autoScanEnabled)
                             .toggleStyle(.switch)
-                            .tint(Color(red: 0.08, green: 0.84, blue: 0.58))
+                            .tint(RadarTheme.Palette.success)
                             .onChange(of: viewModel.autoScanEnabled) { _ in
                                 viewModel.persistAutoScanPreference()
                             }
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
 
                     Toggle("High-risk alerts only", isOn: $viewModel.notifyHighRiskOnly)
                         .toggleStyle(.switch)
-                        .tint(Color(red: 0.96, green: 0.78, blue: 0.34))
-                        .foregroundStyle(.white)
+                        .tint(RadarTheme.Palette.warning)
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
                         .onChange(of: viewModel.notifyHighRiskOnly) { _ in
                             viewModel.persistHighRiskAlertPreference()
                         }
@@ -926,7 +957,7 @@ struct ContentView: View {
                                 viewModel.unhideAllMints()
                             }
                             .buttonStyle(.bordered)
-                            .tint(Color(red: 0.96, green: 0.78, blue: 0.34))
+                            .tint(RadarTheme.Palette.warning)
                         }
 
                         Spacer()
@@ -939,7 +970,7 @@ struct ContentView: View {
                 if let checkedAt = viewModel.lastCheckedAt {
                     Text("Last scan: \(checkedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
                 }
 
                 Spacer()
@@ -947,7 +978,7 @@ struct ContentView: View {
                 if viewModel.selectedFilter != .latest {
                     Text("High risk: \(viewModel.highRiskCount)")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
                 }
             }
 
@@ -960,32 +991,15 @@ struct ContentView: View {
 
             HStack(spacing: 8) {
                 RiskDot(label: "Low", value: viewModel.lowRiskCount, color: Color(red: 0.08, green: 0.84, blue: 0.58))
-                RiskDot(label: "Medium", value: viewModel.mediumRiskCount, color: Color(red: 0.14, green: 0.65, blue: 1.0))
-                RiskDot(label: "High", value: viewModel.highRiskCount, color: Color(red: 1.0, green: 0.36, blue: 0.36))
+                RiskDot(label: "Medium", value: viewModel.mediumRiskCount, color: RadarTheme.Palette.accent)
+                RiskDot(label: "High", value: viewModel.highRiskCount, color: RadarTheme.Palette.danger)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             safetyPanel
         }
             .padding(14)
-        .background(Color.white.opacity(0.06))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.14),
-                                Color(red: 0.33, green: 0.86, blue: 1.0).opacity(0.48),
-                                Color.white.opacity(0.10)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(color: Color(red: 0.33, green: 0.86, blue: 1.0).opacity(0.16), radius: 18, y: 8)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .radarGlassCard(cornerRadius: 18)
         .animation(.easeInOut(duration: 0.2), value: viewModel.selectedFilter)
         .animation(.spring(response: 0.32, dampingFraction: 0.9), value: showAdvancedControls)
     }
@@ -995,17 +1009,17 @@ struct ContentView: View {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(Color(red: 1.0, green: 0.36, blue: 0.36))
+                        .fill(RadarTheme.Palette.accent)
                         .frame(width: 7, height: 7)
                     Text("Live Solana Pulse")
                         .font(.headline)
                 }
-                    .foregroundStyle(.white.opacity(0.96))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                 Spacer()
                 if !viewModel.solanaHeadlines.isEmpty {
                     Text("\(min(viewModel.activeHeadlineIndex + 1, viewModel.solanaHeadlines.count))/\(viewModel.solanaHeadlines.count)")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
                 }
             }
 
@@ -1016,7 +1030,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 6) {
                     Text(headline.title)
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(RadarTheme.Palette.textPrimary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .id(headline.id)
@@ -1025,12 +1039,12 @@ struct ContentView: View {
                         HStack(spacing: 8) {
                             Text(headline.source)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color(red: 0.62, green: 0.92, blue: 1.0))
+                                .foregroundStyle(RadarTheme.Palette.accent)
                                 .lineLimit(1)
                             if let published = headline.publishedAt {
                                 Text(published.formatted(date: .abbreviated, time: .shortened))
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.58))
+                                    .foregroundStyle(RadarTheme.Palette.textSecondary)
                                     .lineLimit(1)
                             }
                         }
@@ -1052,11 +1066,11 @@ struct ContentView: View {
                                         Text(topic)
                                             .font(.caption.weight(.semibold))
                                     }
-                                    .foregroundStyle(.white.opacity(0.92))
+                                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.08))
-                                    .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+                                    .background(RadarTheme.Palette.surface)
+                                    .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                                     .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
@@ -1067,7 +1081,7 @@ struct ContentView: View {
             } else {
                 Text(viewModel.newsStatusMessage ?? "Loading live Solana headlines...")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
             }
 
             HStack(spacing: 8) {
@@ -1076,10 +1090,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(Color.white.opacity(0.08))
+                .background(RadarTheme.Palette.surface)
+                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                 .clipShape(Capsule())
 
                 if let headline = viewModel.currentHeadline {
@@ -1088,21 +1103,17 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background(Color.white.opacity(0.08))
+                    .background(RadarTheme.Palette.surface)
+                    .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                     .clipShape(Capsule())
                 }
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.05))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(red: 0.08, green: 0.84, blue: 0.58).opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .radarGlassCard(cornerRadius: 18)
         .animation(.easeInOut(duration: 0.35), value: viewModel.currentHeadline?.id)
     }
 
