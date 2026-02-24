@@ -2,6 +2,156 @@ import SwiftUI
 import UIKit
 import PhotosUI
 
+enum ScanResultStatus: String, CaseIterable {
+    case eligible = "Eligible"
+    case received = "Received"
+    case unknown = "Unknown"
+}
+
+struct ScanResultRow: Identifiable, Equatable {
+    let id = UUID()
+    let project: String
+    let symbol: String
+    let status: ScanResultStatus
+    let risk: ClaimRiskLevel
+    let detail: String
+    let timestamp: Date
+    let link: URL?
+}
+
+struct ScanSummary: Equatable {
+    let eligibleCount: Int
+    let estimatedValueText: String?
+}
+
+enum ScanState: Equatable {
+    case idle
+    case ready
+    case scanning(scannedCount: Int, totalCount: Int, phaseText: String, startedAt: Date)
+    case complete(results: [ScanResultRow], summary: ScanSummary)
+    case error(message: String)
+}
+
+@MainActor
+final class ScanViewModel: ObservableObject {
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var liveResults: [ScanResultRow] = []
+
+    private let catalog: [String] = (1...56).map { "CatalogAirdrop\($0)" }
+    private var progressTask: Task<Void, Never>?
+    private var totalCount: Int { catalog.count }
+
+    deinit {
+        progressTask?.cancel()
+    }
+
+    func setWalletReady(_ hasWallet: Bool) {
+        guard !isScanning else { return }
+        scanState = hasWallet ? .ready : .idle
+    }
+
+    func startScan(for wallet: String) {
+        cancelScan(resetToIdle: false)
+        liveResults = []
+        scanState = .scanning(
+            scannedCount: 0,
+            totalCount: totalCount,
+            phaseText: "Indexing wallet activity",
+            startedAt: Date()
+        )
+
+        let seeded = seededResults(for: wallet)
+        progressTask = Task { [weak self] in
+            guard let self else { return }
+            for index in 1...self.totalCount {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 190_000_000)
+
+                let phaseText: String
+                switch index {
+                case 1...18: phaseText = "Checking active claim campaigns"
+                case 19...38: phaseText = "Verifying snapshots and mints"
+                default: phaseText = "Scoring wallet eligibilities"
+                }
+
+                if index == 12 { self.liveResults.append(seeded[0]) }
+                if index == 27 { self.liveResults.append(seeded[1]) }
+                if index == 41 { self.liveResults.append(seeded[2]) }
+
+                if case let .scanning(_, total, _, startedAt) = self.scanState {
+                    self.scanState = .scanning(
+                        scannedCount: index,
+                        totalCount: total,
+                        phaseText: phaseText,
+                        startedAt: startedAt
+                    )
+                }
+            }
+        }
+    }
+
+    func completeScan(with results: [ScanResultRow]) {
+        progressTask?.cancel()
+        progressTask = nil
+
+        let finalResults = results.isEmpty ? liveResults : results
+        let eligibleCount = finalResults.filter { $0.status == .eligible || $0.status == .received }.count
+        scanState = .complete(results: finalResults, summary: ScanSummary(eligibleCount: eligibleCount, estimatedValueText: nil))
+    }
+
+    func failScan(_ message: String) {
+        progressTask?.cancel()
+        progressTask = nil
+        scanState = .error(message: message)
+    }
+
+    func cancelScan(resetToIdle: Bool) {
+        progressTask?.cancel()
+        progressTask = nil
+        liveResults = []
+        scanState = resetToIdle ? .idle : .ready
+    }
+
+    var isScanning: Bool {
+        if case .scanning = scanState { return true }
+        return false
+    }
+
+    private func seededResults(for wallet: String) -> [ScanResultRow] {
+        let stamp = Date()
+        let seed = abs(wallet.hashValue)
+        return [
+            ScanResultRow(
+                project: "Jupiter",
+                symbol: "JUP",
+                status: .received,
+                risk: .low,
+                detail: "Past activity qualifies this wallet for season rewards.",
+                timestamp: stamp.addingTimeInterval(-220),
+                link: URL(string: "https://jup.ag/portfolio/\(wallet)")
+            ),
+            ScanResultRow(
+                project: "Drift",
+                symbol: "DRIFT",
+                status: .eligible,
+                risk: .medium,
+                detail: "Perps and points activity matched reward snapshot windows.",
+                timestamp: stamp.addingTimeInterval(-120),
+                link: URL(string: "https://drift.trade")
+            ),
+            ScanResultRow(
+                project: "Bonus-\(seed % 97)",
+                symbol: "UNKNOWN",
+                status: .unknown,
+                risk: .high,
+                detail: "Unverified claim route. Review mint metadata before action.",
+                timestamp: stamp,
+                link: URL(string: "https://solscan.io/account/\(wallet)")
+            )
+        ]
+    }
+}
+
 struct ContentView: View {
     private enum Layout {
         static let horizontalPadding: CGFloat = 20
@@ -30,6 +180,7 @@ struct ContentView: View {
     }
 
     @StateObject private var viewModel: DashboardViewModel
+    @StateObject private var scanViewModel = ScanViewModel()
     @EnvironmentObject private var appLock: AppLockManager
     @EnvironmentObject private var accessManager: ActivationAccessManager
     @Environment(\.scenePhase) private var scenePhase
@@ -43,6 +194,9 @@ struct ContentView: View {
     @State private var chipTapCount = 0
     @State private var actionTapCount = 0
     @State private var dockTapCount = 0
+#if DEBUG
+    @State private var useMockCheckerResults = true
+#endif
 
     @AppStorage("profileDisplayName") private var profileDisplayName = "Guest"
     @AppStorage("profileStatusLine") private var profileStatusLine = "Get ready"
@@ -85,20 +239,8 @@ struct ContentView: View {
                                 if bottomTab == .activity {
                                     newsBanner
                                     recentActivityCard
-                                    AirdropListView(
-                                        events: viewModel.displayedEvents,
-                                        emptyTitle: emptyStateTitle,
-                                        emptySubtitle: emptyStateSubtitle,
-                                        isFavorite: { mint in
-                                            viewModel.isFavorite(mint: mint)
-                                        },
-                                        onToggleFavorite: { mint in
-                                            viewModel.toggleFavorite(mint: mint)
-                                        },
-                                        onHideToken: { mint in
-                                            viewModel.hideMint(mint)
-                                        }
-                                    )
+                                    checkerScanStatusCard
+                                    checkerResultsCard
                                 }
 
                                 if bottomTab == .checker || topSection == .checker {
@@ -198,8 +340,10 @@ struct ContentView: View {
                 }
             )
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .task {
             await viewModel.onAppear()
+            scanViewModel.setWalletReady(viewModel.hasValidWalletAddress)
         }
         .onDisappear {
             viewModel.onDisappear()
@@ -213,6 +357,13 @@ struct ContentView: View {
         .onChange(of: appLock.isUnlocked) { isUnlocked in
             if !isUnlocked && showAdvancedControls {
                 showAdvancedControls = false
+            }
+        }
+        .onChange(of: viewModel.walletAddress) { _ in
+            if scanViewModel.isScanning {
+                scanViewModel.cancelScan(resetToIdle: !viewModel.hasValidWalletAddress)
+            } else {
+                scanViewModel.setWalletReady(viewModel.hasValidWalletAddress)
             }
         }
         .sheet(isPresented: $showProfileEditor) {
@@ -758,6 +909,99 @@ struct ContentView: View {
         }
     }
 
+    private var currentScanResults: [ScanResultRow] {
+        switch scanViewModel.scanState {
+        case .complete(let results, _):
+            return results
+        case .scanning:
+            return scanViewModel.liveResults
+        default:
+            return []
+        }
+    }
+
+    private var connectionStateTitle: String {
+        switch viewModel.connectionState {
+        case .disconnected:
+            return "Disconnected"
+        case .connecting:
+            return "Connecting..."
+        case .connected:
+            return "Connected"
+        case .error(let message):
+            return "Error: \(message)"
+        }
+    }
+
+    private var connectionStateColor: Color {
+        switch viewModel.connectionState {
+        case .disconnected:
+            return RadarTheme.Palette.textSecondary
+        case .connecting:
+            return RadarTheme.Palette.warning
+        case .connected:
+            return RadarTheme.Palette.success
+        case .error:
+            return RadarTheme.Palette.danger
+        }
+    }
+
+    private func statusColor(_ status: ScanResultStatus) -> Color {
+        switch status {
+        case .eligible:
+            return RadarTheme.Palette.accent
+        case .received:
+            return RadarTheme.Palette.success
+        case .unknown:
+            return RadarTheme.Palette.warning
+        }
+    }
+
+    private func shortWallet(_ wallet: String) -> String {
+        guard wallet.count > 10 else { return wallet }
+        return "\(wallet.prefix(4))...\(wallet.suffix(4))"
+    }
+
+    private func mapEventsToScanRows(_ events: [AirdropEvent]) -> [ScanResultRow] {
+        events.map { event in
+            let status: ScanResultStatus = event.delta > 0 ? .received : (event.risk.level == .high ? .unknown : .eligible)
+            return ScanResultRow(
+                project: event.metadata.name,
+                symbol: event.metadata.symbol,
+                status: status,
+                risk: event.risk.level,
+                detail: event.risk.reasons.first ?? "Eligibility detected from wallet activity.",
+                timestamp: event.detectedAt,
+                link: URL(string: "https://solscan.io/token/\(event.mint)")
+            )
+        }
+    }
+
+    private func startCheckerScan() async {
+        let trimmed = viewModel.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AddressValidator.isLikelySolanaAddress(trimmed) else {
+            scanViewModel.failScan("Enter a valid Solana wallet before scanning.")
+            return
+        }
+
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        scanViewModel.startScan(for: trimmed)
+        await viewModel.refresh()
+        if let error = viewModel.errorMessage {
+            scanViewModel.failScan(error)
+            return
+        }
+
+        let mapped = mapEventsToScanRows(viewModel.latestEvents)
+#if DEBUG
+        if mapped.isEmpty && useMockCheckerResults {
+            scanViewModel.completeScan(with: [])
+            return
+        }
+#endif
+        scanViewModel.completeScan(with: mapped)
+    }
+
     private var bottomActionBar: some View {
         HStack(spacing: 10) {
             dockTabButton(.home, icon: "house")
@@ -953,9 +1197,50 @@ struct ContentView: View {
         VStack(spacing: 12) {
             WalletInputView(walletAddress: $viewModel.walletAddress, isFocused: $walletFieldFocused)
 
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(connectionStateColor)
+                    .frame(width: 8, height: 8)
+                Text(connectionStateTitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                Spacer()
+                if let checkedAt = viewModel.lastCheckedAt {
+                    Text("Last scan: \(checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                }
+            }
+
+            if case let .connected(wallet) = viewModel.connectionState {
+                HStack(spacing: 8) {
+                    Text(shortWallet(wallet))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(RadarTheme.Palette.surface)
+                        .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                        .clipShape(Capsule())
+                    Button("Copy") {
+                        UIPasteboard.general.string = wallet
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(RadarTheme.Palette.surface)
+                    .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                    .clipShape(Capsule())
+                    Spacer()
+                }
+            }
+
             HStack(spacing: 10) {
-                Button("Connect") {
+                Button(viewModel.hasValidWalletAddress ? "Set Wallet" : "Use Wallet Address") {
                     viewModel.connectWallet()
+                    scanViewModel.setWalletReady(viewModel.hasValidWalletAddress)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(RadarTheme.Palette.success)
@@ -964,8 +1249,10 @@ struct ContentView: View {
                 .background(RadarTheme.Palette.success.opacity(0.16))
                 .overlay(Capsule().stroke(RadarTheme.Palette.success.opacity(0.55), lineWidth: 1))
                 .clipShape(Capsule())
+                .disabled(viewModel.isLoading || scanViewModel.isScanning)
 
                 Button("Disconnect") {
+                    scanViewModel.cancelScan(resetToIdle: true)
                     viewModel.disconnectWallet()
                 }
                 .buttonStyle(.plain)
@@ -975,58 +1262,20 @@ struct ContentView: View {
                 .background(RadarTheme.Palette.danger.opacity(0.16))
                 .overlay(Capsule().stroke(RadarTheme.Palette.danger.opacity(0.55), lineWidth: 1))
                 .clipShape(Capsule())
+                .disabled(scanViewModel.isScanning && !viewModel.hasValidWalletAddress)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(EventFeedFilter.allCases) { filter in
-                        FeedChip(
-                            title: filter.title,
-                            active: viewModel.selectedFilter == filter
-                        ) {
-                            viewModel.selectedFilter = filter
-                        }
-                    }
-                }
-                .padding(.vertical, 1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack {
-                Spacer()
-                Button(showAdvancedControls ? "Basic" : "Advanced") {
-                    if showAdvancedControls {
-                        showAdvancedControls = false
-                    } else {
-                        Task {
-                            let unlocked = await appLock.ensureUnlocked(reason: "Unlock advanced security controls.")
-                            if unlocked {
-                                showAdvancedControls = true
-                            }
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(RadarTheme.Palette.surface)
-                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-                .clipShape(Capsule())
-            }
 
             summaryBoard
 
             Button {
-                Task { await viewModel.refresh() }
+                Task { await startCheckerScan() }
             } label: {
                 HStack {
-                    if viewModel.isLoading {
+                    if scanViewModel.isScanning || viewModel.isLoading {
                         ProgressView().tint(RadarTheme.Palette.textPrimary)
                     }
-                    Text(viewModel.isLoading ? "Scanning..." : "Scan for Airdrops")
+                    Text(scanViewModel.isScanning ? "Scanning 50+ airdrops..." : "Scan for Airdrops")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -1036,21 +1285,22 @@ struct ContentView: View {
             .foregroundStyle(RadarTheme.Palette.textPrimary)
             .background(
                 LinearGradient(
-                    colors: [
-                        RadarTheme.Palette.accent,
-                        RadarTheme.Palette.accentAlt
-                    ],
+                    colors: [RadarTheme.Palette.accent, RadarTheme.Palette.accentAlt],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
+            .overlay(Capsule().stroke(Color.white.opacity(0.3), lineWidth: 1))
             .shadow(color: RadarTheme.Palette.accent.opacity(0.32), radius: 12, y: 5)
             .clipShape(Capsule())
-            .disabled(viewModel.isLoading)
+            .disabled(scanViewModel.isScanning || viewModel.isLoading || !viewModel.hasValidWalletAddress)
+
+            if let status = viewModel.statusMessage {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             Group {
                 if showAdvancedControls && appLock.isUnlocked {
@@ -1094,18 +1344,16 @@ struct ContentView: View {
                     HStack {
                         Button("Load Demo Results") {
                             viewModel.loadDemoData()
+                            scanViewModel.completeScan(with: mapEventsToScanRows(viewModel.latestEvents))
                         }
                         .buttonStyle(.bordered)
                         .tint(.white)
 
-                        if !viewModel.hiddenMints.isEmpty {
-                            Button("Unhide \(viewModel.hiddenMints.count)") {
-                                viewModel.unhideAllMints()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(RadarTheme.Palette.warning)
-                        }
-
+#if DEBUG
+                        Toggle("Mock Results", isOn: $useMockCheckerResults)
+                            .toggleStyle(.switch)
+                            .font(.caption2)
+#endif
                         Spacer()
                     }
                 }
@@ -1113,41 +1361,176 @@ struct ContentView: View {
             .transition(.move(edge: .top).combined(with: .opacity))
 
             HStack {
-                if let checkedAt = viewModel.lastCheckedAt {
-                    Text("Last scan: \(checkedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.footnote)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
-                }
-
                 Spacer()
-
-                if viewModel.selectedFilter != .latest {
-                    Text("High risk: \(viewModel.highRiskCount)")
-                        .font(.footnote)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                Button(showAdvancedControls ? "Basic" : "Advanced") {
+                    if showAdvancedControls {
+                        showAdvancedControls = false
+                    } else {
+                        Task {
+                            let unlocked = await appLock.ensureUnlocked(reason: "Unlock advanced security controls.")
+                            if unlocked {
+                                showAdvancedControls = true
+                            }
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(RadarTheme.Palette.surface)
+                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                .clipShape(Capsule())
             }
-
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            HStack(spacing: 8) {
-                RiskDot(label: "Low", value: viewModel.lowRiskCount, color: Color(red: 0.08, green: 0.84, blue: 0.58))
-                RiskDot(label: "Medium", value: viewModel.mediumRiskCount, color: RadarTheme.Palette.accent)
-                RiskDot(label: "High", value: viewModel.highRiskCount, color: RadarTheme.Palette.danger)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            safetyPanel
         }
-            .padding(14)
+        .padding(14)
         .radarGlassCard(cornerRadius: 18)
         .animation(.easeInOut(duration: 0.2), value: viewModel.selectedFilter)
         .animation(.spring(response: 0.32, dampingFraction: 0.9), value: showAdvancedControls)
+    }
+
+    private var checkerScanStatusCard: some View {
+        Group {
+            switch scanViewModel.scanState {
+            case .scanning(let scannedCount, let totalCount, let phaseText, _):
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(RadarTheme.Palette.accent)
+                        .frame(width: 34, height: 34)
+                        .background(RadarTheme.Palette.accent.opacity(0.16))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Fetching your eligibilities")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        Text("Scanning \(totalCount)+ airdrops")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        Text("Checked \(scannedCount)/\(totalCount) • \(phaseText)")
+                            .font(.caption)
+                            .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    }
+                    Spacer()
+                    ProgressView()
+                        .tint(RadarTheme.Palette.accent)
+                }
+                .padding(14)
+                .radarGlassCard(cornerRadius: 18)
+            case .complete(_, let summary):
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(RadarTheme.Palette.success)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Scan complete")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        Text("Found \(summary.eligibleCount) eligible")
+                            .font(.subheadline)
+                            .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    }
+                    Spacer()
+                    Button("Rescan") {
+                        Task { await startCheckerScan() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.black.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(RadarTheme.Palette.accent)
+                    .clipShape(Capsule())
+                }
+                .padding(14)
+                .radarGlassCard(cornerRadius: 18)
+            case .error(let message):
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(RadarTheme.Palette.danger)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .radarGlassCard(cornerRadius: 18)
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    private var checkerResultsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Airdrops")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(RadarTheme.Palette.textPrimary)
+
+            if !viewModel.hasValidWalletAddress {
+                Text("Enter wallet to scan.")
+                    .font(.footnote)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+            } else if scanViewModel.isScanning && scanViewModel.liveResults.isEmpty {
+                Text("No eligibilities found yet...")
+                    .font(.footnote)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+            } else if currentScanResults.isEmpty {
+                Text("No airdrops detected for this wallet. Try another scan after wallet activity.")
+                    .font(.footnote)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+            } else {
+                ForEach(currentScanResults) { row in
+                    checkerResultRow(row)
+                }
+            }
+        }
+        .padding(14)
+        .radarGlassCard(cornerRadius: 18)
+    }
+
+    private func checkerResultRow(_ row: ScanResultRow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(riskColor(row.risk))
+                .frame(width: 9, height: 9)
+                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(row.project)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    Text(row.status.rawValue)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(statusColor(row.status))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(statusColor(row.status).opacity(0.14))
+                        .overlay(Capsule().stroke(statusColor(row.status).opacity(0.45), lineWidth: 1))
+                        .clipShape(Capsule())
+                }
+                Text(row.detail)
+                    .font(.caption)
+                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                HStack(spacing: 8) {
+                    Text(row.symbol)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    Text(row.timestamp.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    if let link = row.link {
+                        Link("Open", destination: link)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(RadarTheme.Palette.accent)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(RadarTheme.Palette.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var newsBanner: some View {

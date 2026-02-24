@@ -1,5 +1,12 @@
 import Foundation
 
+enum WalletConnectionState: Equatable {
+    case disconnected
+    case connecting
+    case connected(String)
+    case error(String)
+}
+
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var walletAddress = ""
@@ -19,6 +26,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var newsStatusMessage: String?
     @Published private(set) var favoriteMints: Set<String> = []
     @Published private(set) var hiddenMints: Set<String> = []
+    @Published private(set) var connectionState: WalletConnectionState = .disconnected
+    @Published private(set) var statusMessage: String?
 
     private let service: AirdropMonitorService
     private let notificationManager: NotificationManager
@@ -62,6 +71,7 @@ final class DashboardViewModel: ObservableObject {
 
         if let connected = walletSession.connectedWallet {
             walletAddress = connected
+            connectionState = .connected(connected)
         }
     }
 
@@ -76,6 +86,7 @@ final class DashboardViewModel: ObservableObject {
 
         if let connected = walletSession.connectedWallet, walletAddress.isEmpty {
             walletAddress = connected
+            connectionState = .connected(connected)
         }
 
         historyEvents = historyStore.load()
@@ -111,9 +122,22 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func connectWallet() {
-        walletSession.connect(manualAddress: walletAddress)
+        let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AddressValidator.isLikelySolanaAddress(trimmed) else {
+            connectionState = .error("Enter a valid Solana wallet address.")
+            statusMessage = "Invalid wallet format."
+            return
+        }
+
+        connectionState = .connecting
+        walletSession.connect(manualAddress: trimmed)
         if let connected = walletSession.connectedWallet {
             walletAddress = connected
+            connectionState = .connected(connected)
+            statusMessage = "Wallet connected."
+        } else {
+            connectionState = .error("Unable to set wallet.")
+            statusMessage = "Connection failed."
         }
     }
 
@@ -121,7 +145,13 @@ final class DashboardViewModel: ObservableObject {
         walletSession.disconnect()
         walletAddress = ""
         latestEvents = []
+        historyEvents = []
+        historyStore.clear()
+        selectedFilter = .latest
+        lastCheckedAt = nil
         errorMessage = nil
+        connectionState = .disconnected
+        statusMessage = "Wallet disconnected."
     }
 
     func clearHistory() {
@@ -133,6 +163,8 @@ final class DashboardViewModel: ObservableObject {
         walletSession.handleDeeplink(url)
         if let connected = walletSession.connectedWallet {
             walletAddress = connected
+            connectionState = .connected(connected)
+            statusMessage = "Wallet loaded from link."
         }
     }
 
@@ -140,13 +172,17 @@ final class DashboardViewModel: ObservableObject {
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
             errorMessage = "Enter a valid Solana wallet address."
+            connectionState = .error("Enter a valid Solana wallet address.")
+            statusMessage = "Wallet required before scan."
             return
         }
 
         walletAddress = trimmed
         connectWallet()
+        guard case .connected = connectionState else { return }
         isLoading = true
         errorMessage = nil
+        statusMessage = "Scanning wallet..."
 
         do {
             let newEvents = try await service.checkForAirdrops(wallet: trimmed)
@@ -154,6 +190,8 @@ final class DashboardViewModel: ObservableObject {
             historyStore.save(newEvents: newEvents)
             historyEvents = historyStore.load()
             lastCheckedAt = Date()
+            connectionState = .connected(trimmed)
+            statusMessage = newEvents.isEmpty ? "No airdrops detected." : "Scan complete: \(newEvents.count) events."
 
             if notificationsEnabled {
                 let eventsForAlert = notifyHighRiskOnly
@@ -164,6 +202,8 @@ final class DashboardViewModel: ObservableObject {
 
         } catch {
             errorMessage = error.localizedDescription
+            connectionState = .error(error.localizedDescription)
+            statusMessage = "Scan failed."
         }
 
         isLoading = false
@@ -293,6 +333,12 @@ final class DashboardViewModel: ObservableObject {
         selectedFilter = .latest
         lastCheckedAt = now
         errorMessage = nil
+        if let connected = walletSession.connectedWallet {
+            connectionState = .connected(connected)
+        } else if AddressValidator.isLikelySolanaAddress(walletAddress) {
+            connectionState = .connected(walletAddress)
+        }
+        statusMessage = "Demo results loaded."
     }
 
     func refreshSolanaNews() async {
