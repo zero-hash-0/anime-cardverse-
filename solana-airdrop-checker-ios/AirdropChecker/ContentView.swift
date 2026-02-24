@@ -3,6 +3,16 @@ import UIKit
 import PhotosUI
 
 struct ContentView: View {
+    private enum Layout {
+        static let horizontalPadding: CGFloat = 20
+        static let sectionSpacing: CGFloat = 16
+        static let pillHeight: CGFloat = 44
+        static let chipHeight: CGFloat = 42
+        static let heroCorner: CGFloat = 28
+        static let dockHeight: CGFloat = 82
+        static let dockBottomGap: CGFloat = 12
+    }
+
     private enum TopSection: String, CaseIterable, Identifiable {
         case dashboard = "Dashboard"
         case checker = "Checker"
@@ -29,6 +39,10 @@ struct ContentView: View {
     @State private var bottomTab: BottomDockTab = .home
     @FocusState private var walletFieldFocused: Bool
     @State private var hitTestDebugMode = false
+    @State private var segmentedTapCount = 0
+    @State private var chipTapCount = 0
+    @State private var actionTapCount = 0
+    @State private var dockTapCount = 0
 
     @AppStorage("profileDisplayName") private var profileDisplayName = "Guest"
     @AppStorage("profileStatusLine") private var profileStatusLine = "Get ready"
@@ -40,7 +54,7 @@ struct ContentView: View {
     private let themeLime = RadarTheme.Palette.accent
     private let themeLimeSoft = RadarTheme.Palette.accentAlt
     private let themeCard = RadarTheme.Palette.surface
-    private let dockHeight: CGFloat = 78
+    private let dockHeight: CGFloat = Layout.dockHeight
 
     init(viewModel: DashboardViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -56,7 +70,7 @@ struct ContentView: View {
 
                     ScrollViewReader { reader in
                         ScrollView {
-                            VStack(spacing: 16) {
+                            VStack(spacing: Layout.sectionSpacing) {
                                 header
                                 topSectionPills
                                 contextChipRail
@@ -122,9 +136,9 @@ struct ContentView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, Layout.horizontalPadding)
                             .padding(.top, 16)
-                            .padding(.bottom, dockHeight + proxy.safeAreaInsets.bottom + 24)
+                            .padding(.bottom, dockHeight + proxy.safeAreaInsets.bottom + 16)
                         }
                         .scrollDismissesKeyboard(.interactively)
                         .onChange(of: walletFieldFocused) { focused in
@@ -146,8 +160,8 @@ struct ContentView: View {
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             .safeAreaInset(edge: .bottom, spacing: 8) {
                 bottomActionBar
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, Layout.horizontalPadding)
+                    .padding(.bottom, Layout.dockBottomGap)
             }
             .overlay(alignment: .topTrailing) {
 #if DEBUG
@@ -164,6 +178,16 @@ struct ContentView: View {
                     .padding(.top, 6)
                     .padding(.trailing, 16)
                     .allowsHitTesting(false)
+#endif
+            }
+            .overlay(alignment: .bottomLeading) {
+#if DEBUG
+                if hitTestDebugMode {
+                    debugTelemetryOverlay(proxy: proxy)
+                        .padding(.leading, 12)
+                        .padding(.bottom, 8)
+                        .allowsHitTesting(false)
+                }
 #endif
             }
             .simultaneousGesture(
@@ -211,6 +235,26 @@ struct ContentView: View {
         }
     }
 
+    private func debugTelemetryOverlay(proxy: GeometryProxy) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Hit-Test Debug ON")
+                .font(.caption2.weight(.bold))
+            Text("safeTop: \(Int(proxy.safeAreaInsets.top))  safeBottom: \(Int(proxy.safeAreaInsets.bottom))")
+                .font(.caption2.monospaced())
+            Text("dockHeight: \(Int(dockHeight))  scrollBottomPad: \(Int(dockHeight + proxy.safeAreaInsets.bottom + 16))")
+                .font(.caption2.monospaced())
+            Text("size: \(Int(proxy.size.width))x\(Int(proxy.size.height))")
+                .font(.caption2.monospaced())
+            Text("seg:\(segmentedTapCount) chip:\(chipTapCount) action:\(actionTapCount) dock:\(dockTapCount)")
+                .font(.caption2.monospaced())
+        }
+        .padding(8)
+        .background(Color.black.opacity(0.66))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(0.22), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .foregroundStyle(Color.white.opacity(0.92))
+    }
+
     private var buildLabel: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
@@ -244,6 +288,7 @@ struct ContentView: View {
                 circleNavButton(systemName: "bell") {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     Task { await viewModel.refreshSolanaNews() }
+                    actionTapCount += 1
                 }
                 circleNavButton(systemName: "magnifyingglass") {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -251,6 +296,7 @@ struct ContentView: View {
                     topSection = .checker
                     showAdvancedControls = true
                     walletFieldFocused = true
+                    actionTapCount += 1
                 }
             }
         }
@@ -306,12 +352,13 @@ struct ContentView: View {
                         topSection = section
                         bottomTab = section == .checker ? .checker : .home
                     }
+                    segmentedTapCount += 1
                 } label: {
                     Text(section.rawValue)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(active ? Color.black.opacity(0.9) : RadarTheme.Palette.textSecondary)
                         .padding(.horizontal, 16)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Layout.pillHeight)
                         .background(active ? RadarTheme.Palette.accent : RadarTheme.Palette.surfaceStrong.opacity(0.65))
                         .overlay(
                             Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.40) : RadarTheme.Palette.stroke, lineWidth: 1)
@@ -331,12 +378,13 @@ struct ContentView: View {
             HStack(spacing: 8) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    chipTapCount += 1
                 } label: {
                     Text("New")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.black.opacity(0.9))
                         .padding(.horizontal, 14)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Layout.chipHeight)
                         .background(RadarTheme.Palette.accent)
                         .clipShape(Capsule())
                         .contentShape(Capsule())
@@ -345,12 +393,13 @@ struct ContentView: View {
                 ForEach(["Fast", "Risk", "Watchlist", "On-chain"], id: \.self) { chip in
                     Button {
                         print("Selected chip: \(chip)")
+                        chipTapCount += 1
                     } label: {
                         Text(chip)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(RadarTheme.Palette.textSecondary)
                             .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
+                            .frame(minHeight: Layout.chipHeight)
                             .background(RadarTheme.Palette.surface)
                             .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                             .clipShape(Capsule())
@@ -364,7 +413,7 @@ struct ContentView: View {
 
     private var featuredMissionCard: some View {
         ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: Layout.heroCorner, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [Color.black.opacity(0.76), Color.black.opacity(0.46)],
@@ -373,7 +422,7 @@ struct ContentView: View {
                     )
                 )
                 .overlay(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: Layout.heroCorner, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [RadarTheme.Palette.accent.opacity(0.28), .clear],
@@ -383,7 +432,7 @@ struct ContentView: View {
                         )
                 }
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: Layout.heroCorner, style: .continuous)
                         .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
                 )
 
@@ -432,7 +481,7 @@ struct ContentView: View {
             }
             .padding(14)
         }
-        .frame(height: 250)
+        .frame(height: 248)
         .shadow(color: Color.black.opacity(0.25), radius: 12, y: 6)
     }
 
@@ -524,16 +573,19 @@ struct ContentView: View {
                 let trimmed = viewModel.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
                 UIPasteboard.general.string = trimmed
+                actionTapCount += 1
             }
 
             quickActionButton(title: "Solscan", icon: "safari") {
                 guard let walletExplorerURL else { return }
                 UIApplication.shared.open(walletExplorerURL)
+                actionTapCount += 1
             }
 
             quickActionButton(title: "Jupiter", icon: "arrow.up.right.square") {
                 guard let jupiterURL else { return }
                 UIApplication.shared.open(jupiterURL)
+                actionTapCount += 1
             }
         }
     }
@@ -549,7 +601,7 @@ struct ContentView: View {
             }
             .foregroundStyle(RadarTheme.Palette.textPrimary)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 44)
+            .frame(minHeight: Layout.pillHeight)
             .background(RadarTheme.Palette.surfaceStrong.opacity(0.85))
             .overlay(
                 Capsule()
@@ -731,6 +783,7 @@ struct ContentView: View {
                 bottomTab = tab
                 topSection = tab == .checker ? .checker : .dashboard
             }
+            dockTapCount += 1
             if tab == .checker {
                 Task { await viewModel.refresh() }
             }
