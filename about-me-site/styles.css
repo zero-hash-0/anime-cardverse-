@@ -41,7 +41,7 @@ body {
 
 .page {
   width: min(1200px, 94vw);
-  margin: 36px auto 56px;
+  margin: 8px auto 56px;
 }
 
 .hero-shell {
@@ -378,12 +378,29 @@ h1 {
   .page {
     margin: 0 auto 30px;
     width: 100vw;
-    padding-top: max(env(safe-area-inset-top), 0px);
+    padding-top: 0;
+  }
+
+  .window-back {
+    display: none;
+  }
+
+  .window-front {
+    border-radius: 18px;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    background:
+      radial-gradient(circle at 72% 18%, rgba(255, 46, 81, 0.14), transparent 35%),
+      linear-gradient(160deg, rgba(26, 7, 12, 0.94), rgba(10, 5, 8, 0.98));
+  }
+
+  .window-bar {
+    display: none;
   }
 
   .hero-shell {
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
   .window-back,
@@ -398,6 +415,8 @@ h1 {
 
   .top-nav {
     flex-wrap: wrap;
+    padding-top: 12px;
+    padding-bottom: 8px;
   }
 
   .nav-links {
@@ -425,7 +444,11 @@ h1 {
     grid-template-columns: auto 1fr auto;
     gap: 10px;
     align-items: center;
-    padding-top: 12px;
+    padding-top: 8px;
+  }
+
+  .window-front {
+    border-radius: 14px;
   }
 
   .brand {
