@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>notTOKYO | About</title>
+    <meta
+      name="description"
+      content="About notTOKYO - developer profile, focus areas, and section-first personal site skeleton."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Urbanist:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-noise" aria-hidden="true"></div>
+
+    <main class="page">
+      <section class="hero-shell" id="top">
+        <article class="window window-back" aria-hidden="true"></article>
+
+        <article class="window window-front">
+          <header class="window-bar">
+            <div class="window-dots">
+              <span class="dot red"></span>
+              <span class="dot amber"></span>
+              <span class="dot green"></span>
+            </div>
+            <p class="window-title">nottokyo.dev</p>
+            <button class="window-action" aria-label="Open menu">+</button>
+          </header>
+
+          <nav class="top-nav">
+            <a href="#top" class="brand">NT</a>
+            <div class="nav-links">
+              <a href="#about">About</a>
+              <a href="#focus">Focus</a>
+              <a href="#stack">Stack</a>
+              <a href="#roadmap">Roadmap</a>
+            </div>
+            <a href="#contact" class="btn btn-small">Contact</a>
+          </nav>
+
+          <div class="hero-grid">
+            <section class="hero-copy reveal">
+              <p class="eyebrow">Developer Profile</p>
+              <h1>notTOKYO</h1>
+              <p class="lede">
+                Florida-based developer with a strong foundation in security and systems architecture.
+              </p>
+              <div class="hero-actions">
+                <a href="#about" class="btn">Start Here</a>
+                <a href="#roadmap" class="btn btn-ghost">See Direction</a>
+              </div>
+            </section>
+
+            <figure class="hero-photo reveal" aria-label="notTOKYO profile image">
+              <div class="photo-frame">
+                <img
+                  id="profile-image"
+                  src="./assets/profile-nottokyo.jpg"
+                  alt="notTOKYO profile"
+                  onerror="this.onerror=null;this.src='./assets/profile-placeholder.svg';this.classList.add('image-fallback')"
+                />
+              </div>
+            </figure>
+          </div>
+
+          <section class="stats-strip" id="about">
+            <article class="stat reveal">
+              <h3>Florida Based</h3>
+              <p>Builder with security-first discipline</p>
+            </article>
+            <article class="stat reveal">
+              <h3>BAS Cybersecurity</h3>
+              <p>St. Petersburg College</p>
+            </article>
+            <article class="stat reveal">
+              <h3>Certified + Practical</h3>
+              <p>Architecture, defense, and delivery</p>
+            </article>
+          </section>
+        </article>
+      </section>
+
+      <section class="content">
+        <article class="panel reveal" id="about-detail">
+          <p class="eyebrow">About</p>
+          <h2>Who is notTOKYO</h2>
+          <p>
+            I am a Florida-based developer with a strong foundation in security and systems architecture. With a BAS in
+            Cybersecurity from St. Petersburg College, I combine formal education with hands-on technical depth.
+          </p>
+          <p>
+            With major certifications under my belt, I bring both a builder's mindset and a defender's discipline to
+            every project, bridging development and cybersecurity with confidence and precision.
+          </p>
+        </article>
+
+        <article class="panel reveal" id="focus">
+          <p class="eyebrow">Current Focus</p>
+          <h2>What I build end-to-end</h2>
+          <div class="project-list">
+            <div class="project-card">
+              <h3>Full-stack applications</h3>
+              <p>Designing and building modern web platforms with strong backend foundations.</p>
+            </div>
+            <div class="project-card">
+              <h3>Mobile and systems work</h3>
+              <p>Shipping Swift-based mobile tools and system-level integrations where performance matters.</p>
+            </div>
+            <div class="project-card">
+              <h3>Secure infrastructure</h3>
+              <p>Building, optimizing, and securing application infrastructure across environments.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel reveal" id="stack">
+          <p class="eyebrow">Stack</p>
+          <h2>Languages I use</h2>
+          <div class="chip-row">
+            <span class="chip">Python</span>
+            <span class="chip">JavaScript</span>
+            <span class="chip">TypeScript</span>
+            <span class="chip">Java</span>
+            <span class="chip">C++</span>
+            <span class="chip">C#</span>
+            <span class="chip">Go</span>
+            <span class="chip">Rust</span>
+            <span class="chip">SQL</span>
+            <span class="chip">Swift</span>
+          </div>
+        </article>
+
+        <article class="panel reveal" id="roadmap">
+          <p class="eyebrow">Roadmap</p>
+          <h2>Section placeholders</h2>
+          <div class="roadmap-list">
+            <p><strong>01.</strong> Full biography and background timeline</p>
+            <p><strong>02.</strong> Detailed project case studies with links</p>
+            <p><strong>03.</strong> Public contact/social section</p>
+          </div>
+        </article>
+
+        <article class="panel reveal" id="contact">
+          <p class="eyebrow">Contact</p>
+          <h2>Contact section staged</h2>
+          <p>Email and social handles will be added in the next pass.</p>
+        </article>
+      </section>
+    </main>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

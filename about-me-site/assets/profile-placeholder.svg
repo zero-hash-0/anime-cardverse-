@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Profile Placeholder</title>
+  <desc id="desc">Dark gradient placeholder for missing profile image.</desc>
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16080c"/>
+      <stop offset="55%" stop-color="#2b0d14"/>
+      <stop offset="100%" stop-color="#090508"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="30%" r="45%">
+      <stop offset="0%" stop-color="#ff3a56" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#ff3a56" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#g1)"/>
+  <rect width="800" height="1000" fill="url(#glow)"/>
+  <circle cx="400" cy="370" r="130" fill="#2e141a" stroke="#ff5f73" stroke-opacity="0.5" stroke-width="4"/>
+  <path d="M190 770c38-123 123-190 210-190s172 67 210 190" fill="none" stroke="#ff5f73" stroke-opacity="0.5" stroke-width="20" stroke-linecap="round"/>
+  <text x="400" y="925" text-anchor="middle" fill="#ffd5dc" font-family="Arial, sans-serif" font-size="30" letter-spacing="2">ADD profile-nottokyo.jpg</text>
+</svg>
