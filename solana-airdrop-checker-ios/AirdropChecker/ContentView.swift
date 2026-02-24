@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var showProfileEditor = false
     @State private var bottomTab: BottomDockTab = .home
     @FocusState private var walletFieldFocused: Bool
+    @State private var hitTestDebugMode = false
 
     @AppStorage("profileDisplayName") private var profileDisplayName = "Guest"
     @AppStorage("profileStatusLine") private var profileStatusLine = "Get ready"
@@ -39,7 +40,7 @@ struct ContentView: View {
     private let themeLime = RadarTheme.Palette.accent
     private let themeLimeSoft = RadarTheme.Palette.accentAlt
     private let themeCard = RadarTheme.Palette.surface
-    private let dockHeight: CGFloat = 72
+    private let dockHeight: CGFloat = 78
 
     init(viewModel: DashboardViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -48,34 +49,7 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                LinearGradient(
-                    colors: [
-                        themeBase,
-                        themeMid,
-                        themeDeep
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-
-                RadialGradient(
-                    colors: [themeLime.opacity(0.10), .clear],
-                    center: .topLeading,
-                    startRadius: 20,
-                    endRadius: 340
-                )
-                .blur(radius: 14)
-                .ignoresSafeArea()
-
-                RadialGradient(
-                    colors: [themeLimeSoft.opacity(0.08), .clear],
-                    center: .bottomTrailing,
-                    startRadius: 40,
-                    endRadius: 320
-                )
-                .blur(radius: 12)
-                    .ignoresSafeArea()
+                backgroundLayers
 
                 VStack(spacing: 0) {
                     topNav
@@ -167,6 +141,7 @@ struct ContentView: View {
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .zIndex(1)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             .safeAreaInset(edge: .bottom, spacing: 8) {
@@ -188,8 +163,16 @@ struct ContentView: View {
                     .clipShape(Capsule())
                     .padding(.top, 6)
                     .padding(.trailing, 16)
+                    .allowsHitTesting(false)
 #endif
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if hitTestDebugMode {
+                        print("HitTestDebug: RADAR root tap reached content")
+                    }
+                }
+            )
         }
         .task {
             await viewModel.onAppear()
@@ -258,8 +241,17 @@ struct ContentView: View {
             Spacer()
 
             HStack(spacing: 8) {
-                circleNavButton(systemName: "bell")
-                circleNavButton(systemName: "magnifyingglass")
+                circleNavButton(systemName: "bell") {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Task { await viewModel.refreshSolanaNews() }
+                }
+                circleNavButton(systemName: "magnifyingglass") {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    bottomTab = .checker
+                    topSection = .checker
+                    showAdvancedControls = true
+                    walletFieldFocused = true
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -268,9 +260,8 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func circleNavButton(systemName: String) -> some View {
-        Button {
-        } label: {
+    private func circleNavButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(RadarTheme.Palette.textPrimary)
@@ -293,6 +284,12 @@ struct ContentView: View {
             Text("RADAR")
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .onLongPressGesture(minimumDuration: 1.0) {
+                    #if DEBUG
+                    hitTestDebugMode.toggle()
+                    print("HitTestDebug: \(hitTestDebugMode ? "ON" : "OFF")")
+                    #endif
+                }
             Text("Track Solana drops, risk alerts, and live market momentum.")
                 .font(RadarTheme.Typography.body)
                 .foregroundStyle(RadarTheme.Palette.textSecondary)
@@ -314,12 +311,13 @@ struct ContentView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(active ? Color.black.opacity(0.9) : RadarTheme.Palette.textSecondary)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
+                        .frame(minHeight: 44)
                         .background(active ? RadarTheme.Palette.accent : RadarTheme.Palette.surfaceStrong.opacity(0.65))
                         .overlay(
                             Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.40) : RadarTheme.Palette.stroke, lineWidth: 1)
                         )
                         .clipShape(Capsule())
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -331,22 +329,34 @@ struct ContentView: View {
     private var contextChipRail: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Text("New")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.black.opacity(0.9))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(RadarTheme.Palette.accent)
-                    .clipShape(Capsule())
-                ForEach(["Fast", "Risk", "Watchlist", "On-chain"], id: \.self) { chip in
-                    Text(chip)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Text("New")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.black.opacity(0.9))
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(RadarTheme.Palette.surface)
-                        .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                        .frame(minHeight: 44)
+                        .background(RadarTheme.Palette.accent)
                         .clipShape(Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                ForEach(["Fast", "Risk", "Watchlist", "On-chain"], id: \.self) { chip in
+                    Button {
+                        print("Selected chip: \(chip)")
+                    } label: {
+                        Text(chip)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(RadarTheme.Palette.textSecondary)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(RadarTheme.Palette.surface)
+                            .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                            .clipShape(Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -539,13 +549,14 @@ struct ContentView: View {
             }
             .foregroundStyle(RadarTheme.Palette.textPrimary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .background(RadarTheme.Palette.surfaceStrong.opacity(0.85))
             .overlay(
                 Capsule()
                     .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
             )
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -741,8 +752,56 @@ struct ContentView: View {
                 Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.45) : RadarTheme.Palette.stroke, lineWidth: 1)
             )
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    private var backgroundLayers: some View {
+        ZStack {
+            LinearGradient(
+                colors: [themeBase, themeMid, themeDeep],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            RadialGradient(
+                colors: [themeLime.opacity(0.10), .clear],
+                center: .topLeading,
+                startRadius: 20,
+                endRadius: 340
+            )
+            .blur(radius: 14)
+            .ignoresSafeArea()
+
+            RadialGradient(
+                colors: [themeLimeSoft.opacity(0.08), .clear],
+                center: .bottomTrailing,
+                startRadius: 40,
+                endRadius: 320
+            )
+            .blur(radius: 12)
+            .ignoresSafeArea()
+
+#if DEBUG
+            if hitTestDebugMode {
+                Rectangle()
+                    .fill(Color.red.opacity(0.09))
+                    .ignoresSafeArea()
+                    .overlay(alignment: .topLeading) {
+                        Text("Hit-Test Debug: Background Layers")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .padding(12)
+                    }
+            }
+#endif
+        }
+        .allowsHitTesting(false)
     }
 
     private func snapshotItem(title: String, value: String, subtitle: String) -> some View {
