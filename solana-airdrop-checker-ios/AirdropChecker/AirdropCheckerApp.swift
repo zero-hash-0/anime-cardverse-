@@ -4,23 +4,24 @@ import CryptoKit
 
 enum RadarTheme {
     enum Palette {
-        static let backgroundTop = Color(red: 0.04, green: 0.06, blue: 0.12)
-        static let backgroundBottom = Color(red: 0.01, green: 0.02, blue: 0.05)
-        static let surface = Color.white.opacity(0.08)
-        static let surfaceStrong = Color.white.opacity(0.12)
-        static let stroke = Color.white.opacity(0.16)
+        static let backgroundTop = Color(red: 0.03, green: 0.03, blue: 0.04)
+        static let backgroundBottom = Color(red: 0.01, green: 0.01, blue: 0.02)
+        static let surface = Color.white.opacity(0.06)
+        static let surfaceStrong = Color.white.opacity(0.10)
+        static let stroke = Color.white.opacity(0.12)
         static let textPrimary = Color.white.opacity(0.96)
-        static let textSecondary = Color.white.opacity(0.66)
-        static let accent = Color(red: 0.37, green: 0.52, blue: 1.0)
-        static let accentAlt = Color(red: 0.66, green: 0.33, blue: 1.0)
-        static let success = Color(red: 0.20, green: 0.86, blue: 0.64)
-        static let warning = Color(red: 0.98, green: 0.72, blue: 0.40)
-        static let danger = Color(red: 1.0, green: 0.40, blue: 0.45)
+        static let textSecondary = Color.white.opacity(0.62)
+        static let accent = Color(red: 0.80, green: 0.96, blue: 0.10) // neon-lime
+        static let accentAlt = Color(red: 0.67, green: 0.90, blue: 0.12)
+        static let success = Color(red: 0.35, green: 0.88, blue: 0.56)
+        static let warning = Color(red: 0.98, green: 0.74, blue: 0.36)
+        static let neutral = Color(red: 0.48, green: 0.60, blue: 0.72)
+        static let danger = Color(red: 0.90, green: 0.35, blue: 0.34)
     }
 
     enum Radius {
         static let small: CGFloat = 12
-        static let medium: CGFloat = 18
+        static let medium: CGFloat = 20
         static let large: CGFloat = 24
     }
 
@@ -32,10 +33,10 @@ enum RadarTheme {
     }
 
     enum Typography {
-        static let hero = Font.system(size: 40, weight: .black, design: .rounded)
+        static let hero = Font.system(size: 46, weight: .bold, design: .rounded)
         static let title = Font.system(size: 26, weight: .bold, design: .rounded)
-        static let headline = Font.system(size: 18, weight: .bold, design: .rounded)
-        static let body = Font.system(size: 15, weight: .regular, design: .rounded)
+        static let headline = Font.system(size: 18, weight: .semibold, design: .rounded)
+        static let body = Font.system(size: 16, weight: .regular, design: .rounded)
         static let caption = Font.system(size: 12, weight: .medium, design: .rounded)
     }
 }
@@ -164,110 +165,110 @@ struct ActivationGateView: View {
             )
             .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Radar Access")
-                    .font(RadarTheme.Typography.title)
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
-                Text("Signup uses activation keys only. No email. No phone.")
-                    .font(RadarTheme.Typography.body)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Radar Access")
+                        .font(RadarTheme.Typography.title)
+                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    Text("Signup uses activation keys only. No email. No phone.")
+                        .font(RadarTheme.Typography.body)
+                        .foregroundStyle(RadarTheme.Palette.textSecondary)
 
-                HStack(spacing: 8) {
-                    ForEach(AccessMode.allCases) { mode in
-                        let active = accessMode == mode
-                        Button {
-                            accessMode = mode
-                            errorMessage = nil
-                        } label: {
-                            Text(mode.rawValue)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(active ? RadarTheme.Palette.accent.opacity(0.22) : RadarTheme.Palette.surface)
-                                .overlay(
-                                    Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.55) : RadarTheme.Palette.stroke, lineWidth: 1)
-                                )
-                                .clipShape(Capsule())
+                    HStack(spacing: 8) {
+                        ForEach(AccessMode.allCases) { mode in
+                            let active = accessMode == mode
+                            Button {
+                                accessMode = mode
+                                errorMessage = nil
+                            } label: {
+                                Text(mode.rawValue)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(active ? Color.black.opacity(0.9) : RadarTheme.Palette.textSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(active ? RadarTheme.Palette.accent : RadarTheme.Palette.surface)
+                                    .overlay(
+                                        Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.45) : RadarTheme.Palette.stroke, lineWidth: 1)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
-                }
 
-                TextField("Profile Name", text: $displayName)
-                    .textInputAutocapitalization(.words)
-                    .padding(12)
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
-                    .background(RadarTheme.Palette.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                if accessMode == .haveKey {
-                    TextField("Activation Key", text: $activationKey)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
+                    TextField("Profile Name", text: $displayName)
+                        .textInputAutocapitalization(.words)
                         .padding(12)
                         .foregroundStyle(RadarTheme.Palette.textPrimary)
                         .background(RadarTheme.Palette.surface)
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("No key yet? Auto-assign one now.")
-                            .font(.caption)
-                            .foregroundStyle(RadarTheme.Palette.textSecondary)
-                        if let assignedKeyPreview {
-                            Text("Assigned: \(assignedKeyPreview)")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(RadarTheme.Palette.textPrimary)
+
+                    if accessMode == .haveKey {
+                        TextField("Activation Key", text: $activationKey)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .padding(12)
+                            .foregroundStyle(RadarTheme.Palette.textPrimary)
+                            .background(RadarTheme.Palette.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("No key yet? Auto-assign one now.")
+                                .font(.caption)
+                                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                            if let assignedKeyPreview {
+                                Text("Assigned: \(assignedKeyPreview)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                            }
                         }
                     }
-                }
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red.opacity(0.9))
-                }
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(RadarTheme.Palette.warning)
+                    }
 
-                Button(accessMode == .haveKey ? "Activate Account" : "Auto Assign & Activate") {
-                    let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty else {
-                        errorMessage = "Enter a profile name."
-                        return
+                    Button(accessMode == .haveKey ? "Activate Account" : "Auto Assign & Activate") {
+                        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty else {
+                            errorMessage = "Enter a profile name."
+                            return
+                        }
+                        let keyForActivation: String
+                        if accessMode == .haveKey {
+                            keyForActivation = activationKey
+                        } else {
+                            let assigned = accessManager.autoAssignKey()
+                            assignedKeyPreview = assigned
+                            activationKey = assigned
+                            keyForActivation = assigned
+                        }
+                        guard accessManager.activate(using: keyForActivation) else {
+                            errorMessage = "Invalid activation key."
+                            return
+                        }
+                        profileDisplayName = name
+                        profileStatusLine = "Activated"
+                        errorMessage = nil
                     }
-                    let keyForActivation: String
-                    if accessMode == .haveKey {
-                        keyForActivation = activationKey
-                    } else {
-                        let assigned = accessManager.autoAssignKey()
-                        assignedKeyPreview = assigned
-                        activationKey = assigned
-                        keyForActivation = assigned
-                    }
-                    guard accessManager.activate(using: keyForActivation) else {
-                        errorMessage = "Invalid activation key."
-                        return
-                    }
-                    profileDisplayName = name
-                    profileStatusLine = "Activated"
-                    errorMessage = nil
+                    .buttonStyle(.plain)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.black.opacity(0.9))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(RadarTheme.Palette.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .background(
-                    LinearGradient(
-                        colors: [RadarTheme.Palette.accent, RadarTheme.Palette.accentAlt],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(20)
+                .radarGlassCard(cornerRadius: 20)
+                .padding(.horizontal, 16)
+                .padding(.top, 64)
+                .padding(.bottom, 28)
             }
-            .padding(20)
         }
     }
 }

@@ -27,13 +27,14 @@ struct ContentView: View {
     @State private var showAdvancedControls = false
     @State private var showProfileEditor = false
     @State private var bottomTab: BottomDockTab = .home
+    @FocusState private var walletFieldFocused: Bool
 
     @AppStorage("profileDisplayName") private var profileDisplayName = "Guest"
     @AppStorage("profileStatusLine") private var profileStatusLine = "Get ready"
     @AppStorage("profileAvatarBase64") private var profileAvatarBase64 = ""
 
     private let themeBase = RadarTheme.Palette.backgroundTop
-    private let themeMid = Color(red: 0.02, green: 0.05, blue: 0.13)
+    private let themeMid = Color(red: 0.02, green: 0.02, blue: 0.03)
     private let themeDeep = RadarTheme.Palette.backgroundBottom
     private let themeLime = RadarTheme.Palette.accent
     private let themeLimeSoft = RadarTheme.Palette.accentAlt
@@ -59,7 +60,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
                 RadialGradient(
-                    colors: [themeLime.opacity(0.24), .clear],
+                    colors: [themeLime.opacity(0.10), .clear],
                     center: .topLeading,
                     startRadius: 20,
                     endRadius: 340
@@ -68,7 +69,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
                 RadialGradient(
-                    colors: [themeLimeSoft.opacity(0.18), .clear],
+                    colors: [themeLimeSoft.opacity(0.08), .clear],
                     center: .bottomTrailing,
                     startRadius: 40,
                     endRadius: 320
@@ -79,74 +80,84 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     topNav
 
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            header
-                            topSectionPills
+                    ScrollViewReader { reader in
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                header
+                                topSectionPills
 
-                            if bottomTab == .home {
-                                featuredMissionCard
-                                quickActionsCard
-                                liveSnapshotCard
-                                smartInsightsCard
-                            }
-
-                            if bottomTab == .activity {
-                                newsBanner
-                                recentActivityCard
-                                AirdropListView(
-                                    events: viewModel.displayedEvents,
-                                    emptyTitle: emptyStateTitle,
-                                    emptySubtitle: emptyStateSubtitle,
-                                    isFavorite: { mint in
-                                        viewModel.isFavorite(mint: mint)
-                                    },
-                                    onToggleFavorite: { mint in
-                                        viewModel.toggleFavorite(mint: mint)
-                                    },
-                                    onHideToken: { mint in
-                                        viewModel.hideMint(mint)
-                                    }
-                                )
-                            }
-
-                            if bottomTab == .checker || topSection == .checker {
-                                controlCard
-                                AirdropListView(
-                                    events: viewModel.displayedEvents,
-                                    emptyTitle: emptyStateTitle,
-                                    emptySubtitle: emptyStateSubtitle,
-                                    isFavorite: { mint in
-                                        viewModel.isFavorite(mint: mint)
-                                    },
-                                    onToggleFavorite: { mint in
-                                        viewModel.toggleFavorite(mint: mint)
-                                    },
-                                    onHideToken: { mint in
-                                        viewModel.hideMint(mint)
-                                    }
-                                )
-                            }
-
-                            if bottomTab == .profile {
-                                profileHubCard
-                                securityCenterCard
-                                themePreviewCard
-                            }
-
-                            if viewModel.selectedFilter == .history || viewModel.selectedFilter == .highRisk {
-                                Button("Clear History") {
-                                    viewModel.clearHistory()
+                                if bottomTab == .home {
+                                    featuredMissionCard
+                                    quickActionsCard
+                                    liveSnapshotCard
+                                    smartInsightsCard
                                 }
-                                .buttonStyle(.bordered)
-                                .tint(.red)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                                if bottomTab == .activity {
+                                    newsBanner
+                                    recentActivityCard
+                                    AirdropListView(
+                                        events: viewModel.displayedEvents,
+                                        emptyTitle: emptyStateTitle,
+                                        emptySubtitle: emptyStateSubtitle,
+                                        isFavorite: { mint in
+                                            viewModel.isFavorite(mint: mint)
+                                        },
+                                        onToggleFavorite: { mint in
+                                            viewModel.toggleFavorite(mint: mint)
+                                        },
+                                        onHideToken: { mint in
+                                            viewModel.hideMint(mint)
+                                        }
+                                    )
+                                }
+
+                                if bottomTab == .checker || topSection == .checker {
+                                    controlCard
+                                        .id("controlCard")
+                                    AirdropListView(
+                                        events: viewModel.displayedEvents,
+                                        emptyTitle: emptyStateTitle,
+                                        emptySubtitle: emptyStateSubtitle,
+                                        isFavorite: { mint in
+                                            viewModel.isFavorite(mint: mint)
+                                        },
+                                        onToggleFavorite: { mint in
+                                            viewModel.toggleFavorite(mint: mint)
+                                        },
+                                        onHideToken: { mint in
+                                            viewModel.hideMint(mint)
+                                        }
+                                    )
+                                }
+
+                                if bottomTab == .profile {
+                                    profileHubCard
+                                    securityCenterCard
+                                    themePreviewCard
+                                }
+
+                                if viewModel.selectedFilter == .history || viewModel.selectedFilter == .highRisk {
+                                    Button("Clear History") {
+                                        viewModel.clearHistory()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, dockHeight + proxy.safeAreaInsets.bottom + 24)
+                        }
+                        .scrollDismissesKeyboard(.interactively)
+                        .onChange(of: walletFieldFocused) { focused in
+                            guard focused else { return }
+                            withAnimation(.easeOut(duration: 0.22)) {
+                                reader.scrollTo("controlCard", anchor: .bottom)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, dockHeight + proxy.safeAreaInsets.bottom + 24)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .refreshable {
@@ -160,7 +171,7 @@ struct ContentView: View {
             .safeAreaInset(edge: .bottom, spacing: 8) {
                 bottomActionBar
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 8)
             }
             .overlay(alignment: .topTrailing) {
 #if DEBUG
@@ -206,6 +217,14 @@ struct ContentView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    walletFieldFocused = false
+                }
+            }
+        }
     }
 
     private var buildLabel: String {
@@ -243,13 +262,13 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
+        .background(RadarTheme.Palette.backgroundTop.opacity(0.94))
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.10))
+                .fill(Color.white.opacity(0.08))
                 .frame(height: 0.5)
         }
     }
@@ -283,7 +302,7 @@ struct ContentView: View {
                             endPoint: .trailing
                         )
                     )
-                    .shadow(color: RadarTheme.Palette.accent.opacity(0.24), radius: 12, y: 0)
+                    .shadow(color: RadarTheme.Palette.accent.opacity(0.18), radius: 8, y: 0)
 
                 Text("Track Solana drops, risk alerts, and live market momentum.")
                     .font(RadarTheme.Typography.body)
@@ -307,11 +326,11 @@ struct ContentView: View {
                         Text(section.rawValue)
                             .font(.caption.weight(.bold))
                             .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(active ? RadarTheme.Palette.accent.opacity(0.22) : RadarTheme.Palette.surface)
+                            .background(active ? RadarTheme.Palette.accent.opacity(0.24) : RadarTheme.Palette.surface)
                             .overlay(
-                                Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.55) : RadarTheme.Palette.stroke, lineWidth: 1)
+                                Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.45) : RadarTheme.Palette.stroke, lineWidth: 1)
                             )
                             .clipShape(Capsule())
                     }
@@ -319,12 +338,12 @@ struct ContentView: View {
                 }
             }
             .padding(6)
-            .background(RadarTheme.Palette.surface)
+            .background(RadarTheme.Palette.surfaceStrong.opacity(0.75))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -334,10 +353,18 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [RadarTheme.Palette.surfaceStrong, RadarTheme.Palette.surface],
+                        colors: [Color.black.opacity(0.72), Color.black.opacity(0.42)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
+                )
+                .overlay(
+                    LinearGradient(
+                        colors: [RadarTheme.Palette.accent.opacity(0.18), .clear, .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -363,15 +390,9 @@ struct ContentView: View {
                     Spacer()
                     Image(systemName: "arrow.up.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .foregroundStyle(Color.black.opacity(0.85))
                         .padding(8)
-                        .background(
-                            LinearGradient(
-                                colors: [RadarTheme.Palette.accent, RadarTheme.Palette.accentAlt],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .background(RadarTheme.Palette.accent)
                         .clipShape(Circle())
                 }
             }
@@ -487,20 +508,20 @@ struct ContentView: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .semibold))
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
             }
             .foregroundStyle(RadarTheme.Palette.textPrimary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(RadarTheme.Palette.surface)
+            .padding(.vertical, 10)
+            .background(RadarTheme.Palette.surfaceStrong.opacity(0.85))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                Capsule()
                     .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -508,7 +529,9 @@ struct ContentView: View {
     private var liveSnapshotCard: some View {
         HStack(spacing: 10) {
             snapshotItem(title: "Coverage", value: "\(viewModel.totalDetectedCount)", subtitle: "Tracked tokens")
+            Divider().overlay(Color.white.opacity(0.08))
             snapshotItem(title: "Threat", value: "\(threatPercentage)%", subtitle: "High-risk share")
+            Divider().overlay(Color.white.opacity(0.08))
             snapshotItem(title: "Watchlist", value: "\(viewModel.watchlistCount)", subtitle: "Starred mints")
         }
         .padding(12)
@@ -527,7 +550,7 @@ struct ContentView: View {
                     .foregroundStyle(insightStatusColor)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(RadarTheme.Palette.surface)
+                    .background(insightStatusColor.opacity(0.12))
                     .overlay(Capsule().stroke(insightStatusColor.opacity(0.6), lineWidth: 1))
                     .clipShape(Capsule())
             }
@@ -557,9 +580,9 @@ struct ContentView: View {
             Image(systemName: isGood ? "checkmark" : "exclamationmark")
                 .foregroundStyle(isGood ? RadarTheme.Palette.success : RadarTheme.Palette.warning)
                 .font(.caption)
-                .frame(width: 18, height: 18)
-                .padding(5)
-                .background(RadarTheme.Palette.surface)
+                .frame(width: 20, height: 20)
+                .padding(6)
+                .background(RadarTheme.Palette.surfaceStrong)
                 .overlay(Circle().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
                 .clipShape(Circle())
                 .padding(.top, 1)
@@ -582,7 +605,7 @@ struct ContentView: View {
     }
 
     private var insightStatusColor: Color {
-        if threatPercentage >= 45 { return RadarTheme.Palette.danger }
+        if threatPercentage >= 45 { return RadarTheme.Palette.warning }
         if threatPercentage >= 20 { return RadarTheme.Palette.warning }
         return RadarTheme.Palette.success
     }
@@ -651,7 +674,7 @@ struct ContentView: View {
     private var bottomActionBar: some View {
         HStack(spacing: 12) {
             dockTabButton(.home, icon: "house")
-            dockTabButton(.activity, icon: "calendar")
+            dockTabButton(.activity, icon: "clock.arrow.circlepath")
 
             Button {
                 bottomTab = .checker
@@ -662,7 +685,7 @@ struct ContentView: View {
                     if viewModel.isLoading {
                         ProgressView().tint(.black)
                     } else {
-                        Image(systemName: "waveform.path.ecg")
+                        Image(systemName: "scope")
                             .font(.system(size: 13, weight: .bold))
                     }
                     Text("Scan")
@@ -681,13 +704,13 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.35), radius: 14, y: 8)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(0.30), radius: 18, y: 10)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func dockTabButton(_ tab: BottomDockTab, icon: String) -> some View {
@@ -698,15 +721,23 @@ struct ContentView: View {
                 topSection = tab == .checker ? .checker : .dashboard
             }
         } label: {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(active ? RadarTheme.Palette.textPrimary : RadarTheme.Palette.textSecondary)
-                .frame(width: 34, height: 34)
-                .background(active ? RadarTheme.Palette.accent.opacity(0.20) : RadarTheme.Palette.surface)
-                .overlay(
-                    Circle().stroke(active ? RadarTheme.Palette.accent.opacity(0.5) : RadarTheme.Palette.stroke, lineWidth: 1)
-                )
-                .clipShape(Circle())
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                if active {
+                    Text(tab.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(active ? Color.black.opacity(0.90) : RadarTheme.Palette.textSecondary)
+            .padding(.horizontal, active ? 12 : 0)
+            .frame(width: active ? nil : 34, height: 34)
+            .background(active ? RadarTheme.Palette.accent : RadarTheme.Palette.surface)
+            .overlay(
+                Capsule().stroke(active ? RadarTheme.Palette.accent.opacity(0.45) : RadarTheme.Palette.stroke, lineWidth: 1)
+            )
+            .clipShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -805,7 +836,7 @@ struct ContentView: View {
 
     private var controlCard: some View {
         VStack(spacing: 12) {
-            WalletInputView(walletAddress: $viewModel.walletAddress)
+            WalletInputView(walletAddress: $viewModel.walletAddress, isFocused: $walletFieldFocused)
 
             HStack(spacing: 10) {
                 Button("Connect") {

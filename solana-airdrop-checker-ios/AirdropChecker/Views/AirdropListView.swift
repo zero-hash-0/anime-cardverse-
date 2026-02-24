@@ -201,26 +201,11 @@ private struct AirdropEventRow: View {
     }
 
     private var backgroundGradient: LinearGradient {
-        switch event.risk.level {
-        case .low:
-            return LinearGradient(
-                colors: [RadarTheme.Palette.surface, RadarTheme.Palette.success.opacity(0.12)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .medium:
-            return LinearGradient(
-                colors: [RadarTheme.Palette.surface, RadarTheme.Palette.warning.opacity(0.13)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .high:
-            return LinearGradient(
-                colors: [RadarTheme.Palette.surface, RadarTheme.Palette.danger.opacity(0.14)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
+        LinearGradient(
+            colors: [RadarTheme.Palette.surfaceStrong.opacity(0.92), RadarTheme.Palette.surface.opacity(0.88)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     private var borderColor: Color {
