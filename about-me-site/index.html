@@ -30,12 +30,18 @@
               <span class="dot amber"></span>
               <span class="dot green"></span>
             </div>
-            <p class="window-title">nottokyo.dev</p>
+            <p class="window-title" aria-hidden="true"></p>
             <button class="window-action" aria-label="Open menu">+</button>
           </header>
 
           <nav class="top-nav">
-            <a href="#top" class="brand">NT</a>
+            <a href="#top" class="brand" aria-label="Profile">
+              <img
+                id="brand-image"
+                src="./assets/profile-placeholder.svg"
+                alt="notTOKYO avatar"
+              />
+            </a>
             <div class="nav-links">
               <a href="#about">About</a>
               <a href="#focus">Focus</a>

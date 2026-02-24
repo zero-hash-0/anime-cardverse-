@@ -1,9 +1,11 @@
 document.body.classList.add('js-ready');
 
 const profileImage = document.getElementById('profile-image');
+const brandImage = document.getElementById('brand-image');
+const profileTargets = [profileImage, brandImage].filter(Boolean);
 
 async function resolveProfileImage() {
-  if (!profileImage) return;
+  if (profileTargets.length === 0) return;
 
   const candidates = [
     './assets/profile-nottokyo.jpg',
@@ -22,14 +24,18 @@ async function resolveProfileImage() {
 
   for (const candidate of candidates) {
     if (await exists(candidate)) {
-      profileImage.src = candidate;
-      profileImage.classList.remove('image-fallback');
+      for (const img of profileTargets) {
+        img.src = candidate;
+        img.classList.remove('image-fallback');
+      }
       return;
     }
   }
 
-  profileImage.src = './assets/profile-placeholder.svg';
-  profileImage.classList.add('image-fallback');
+  for (const img of profileTargets) {
+    img.src = './assets/profile-placeholder.svg';
+    img.classList.add('image-fallback');
+  }
 }
 
 resolveProfileImage();
