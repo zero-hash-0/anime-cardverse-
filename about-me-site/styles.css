@@ -23,12 +23,26 @@ body {
 body {
   font-family: "Urbanist", sans-serif;
   color: var(--text);
+  background-color: #2c0009;
   background:
     linear-gradient(180deg, #2a0008 0%, #170006 22%, #090304 55%, #090304 100%),
     radial-gradient(circle at 15% 20%, rgba(255, 34, 67, 0.22), transparent 35%),
     radial-gradient(circle at 85% 15%, rgba(130, 10, 28, 0.2), transparent 32%),
     linear-gradient(135deg, var(--bg-0), var(--bg-1) 50%, #090304);
   overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 180px;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(126, 4, 24, 0.72), rgba(44, 0, 9, 0));
 }
 
 .bg-noise {
@@ -42,7 +56,7 @@ body {
 
 .page {
   width: min(1200px, 94vw);
-  margin: 8px auto 56px;
+  margin: 0 auto 56px;
 }
 
 .hero-shell {
