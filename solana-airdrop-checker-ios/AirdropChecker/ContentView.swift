@@ -1179,21 +1179,6 @@ struct ContentView: View {
 
     private var tabBar: some View {
         VStack(spacing: 0) {
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 1)
-
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.28),
-                    Color.black.opacity(0.08),
-                    .clear
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 14)
-
             HStack(spacing: 8) {
                 ForEach(BetaTab.allCases) { tab in
                     let selected = selectedTab == tab
@@ -1211,26 +1196,26 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(height: 78)
+            .padding(.vertical, 7)
+            .frame(height: 76)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.22, green: 0.23, blue: 0.25),
-                                Color(red: 0.15, green: 0.16, blue: 0.18)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.16, green: 0.17, blue: 0.19).opacity(0.72),
+                                        Color(red: 0.10, green: 0.11, blue: 0.13).opacity(0.86)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [Color.white.opacity(0.08), Color.clear],
@@ -1240,28 +1225,24 @@ struct ContentView: View {
                             )
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.black.opacity(0.35), lineWidth: 3)
-                            .blur(radius: 2.5)
-                            .mask(
-                                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [.black, .clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            )
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(0.52), radius: 22, x: 0, y: 12)
+                    .shadow(color: Color.black.opacity(0.28), radius: 24, x: 0, y: -3)
             )
             .padding(.horizontal, 16)
-            .padding(.top, 2)
+            .padding(.top, 8)
             .padding(.bottom, 10)
         }
         .background(
-            Color.black.opacity(0.26)
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(0.10)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .ignoresSafeArea(edges: .bottom)
         )
     }
@@ -1706,7 +1687,7 @@ private struct TabItemView: View {
     let selected: Bool
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 2) {
             Image(systemName: tab.icon)
                 .font(.system(size: 16, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
@@ -1720,21 +1701,30 @@ private struct TabItemView: View {
             : DesignSystem.Colors.textMuted
         )
         .frame(maxWidth: .infinity)
-        .frame(height: 58)
+        .frame(height: 56)
         .contentShape(Rectangle())
         .background {
             if selected {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(DesignSystem.Colors.accent.opacity(0.12))
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.10),
+                                DesignSystem.Colors.accent.opacity(0.10)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.white.opacity(0.05), Color.clear],
+                                    colors: [Color.white.opacity(0.06), Color.clear],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
