@@ -419,6 +419,7 @@ struct TokenIconView: View {
     let logoURL: URL?
     let size: CGFloat
 
+    @State private var cachedImage: UIImage?
     @State private var resolvedLogoURL: URL?
 
     init(
@@ -435,7 +436,21 @@ struct TokenIconView: View {
 
     var body: some View {
         Group {
-            if let resolvedLogoURL {
+            if let localImage = knownLocalImage {
+                Image(uiImage: localImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .antialiased(true)
+                    .scaledToFill()
+                    .transition(.opacity)
+            } else if let cachedImage {
+                Image(uiImage: cachedImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .antialiased(true)
+                    .scaledToFill()
+                    .transition(.opacity)
+            } else if let resolvedLogoURL {
                 AsyncImage(
                     url: resolvedLogoURL,
                     transaction: Transaction(animation: .easeOut(duration: 0.22))
@@ -463,7 +478,12 @@ struct TokenIconView: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .task(id: resolveKey) {
-            resolvedLogoURL = await TokenIconService.shared.resolvedLogoURL(
+            cachedImage = await TokenIconResolver.shared.image(
+                for: logoURL,
+                mint: mint,
+                symbol: symbol
+            )
+            resolvedLogoURL = await TokenIconResolver.shared.resolvedLogoURL(
                 logoURL: logoURL,
                 mint: mint,
                 symbol: symbol
@@ -471,13 +491,36 @@ struct TokenIconView: View {
         }
     }
 
+    private var knownLocalImage: UIImage? {
+        let source = (symbol ?? "").lowercased()
+        let mintLower = (mint ?? "").lowercased()
+
+        let assetNames: [String]
+        if source == "jup" || mintLower == "jupyiwryjfskupiha7hker8vutaefosybkedznsdvcn" {
+            assetNames = ["token-jup", "jup-icon", "jup"]
+        } else if source == "msol" || mintLower == "mso1uvyafqazs3zvvu8fcb9uhwwxkf6r2kksxxr1yyd" {
+            assetNames = ["token-msol", "msol-icon", "msol"]
+        } else if source == "sol" || mintLower == "so11111111111111111111111111111111111111112" {
+            assetNames = ["token-sol", "sol-icon", "sol"]
+        } else {
+            assetNames = []
+        }
+
+        for name in assetNames {
+            if let image = UIImage(named: name) {
+                return image
+            }
+        }
+        return nil
+    }
+
     private var placeholder: some View {
         Circle()
             .fill(
                 RadialGradient(
                     colors: [
-                        Color(red: 0.24, green: 0.26, blue: 0.29),
-                        Color(red: 0.13, green: 0.14, blue: 0.16)
+                        fallbackCenterColor,
+                        fallbackEdgeColor
                     ],
                     center: .center,
                     startRadius: 2,
@@ -491,6 +534,23 @@ struct TokenIconView: View {
                     .font(.system(size: max(12, size * 0.42), weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.74))
             )
+    }
+
+    private var fallbackCenterColor: Color {
+        let hue = fallbackHue
+        return Color(hue: hue, saturation: 0.30, brightness: 0.40)
+    }
+
+    private var fallbackEdgeColor: Color {
+        let hue = fallbackHue
+        return Color(hue: hue, saturation: 0.36, brightness: 0.18)
+    }
+
+    private var fallbackHue: Double {
+        let seed = (symbol ?? "") + (mint ?? "")
+        guard !seed.isEmpty else { return 0.58 }
+        let hash = abs(seed.hashValue)
+        return Double(hash % 360) / 360.0
     }
 
     private var resolveKey: String {

@@ -541,6 +541,23 @@ actor TokenIconService {
     }
 }
 
+actor TokenIconResolver {
+    nonisolated static let shared = TokenIconResolver()
+    private let iconService: TokenIconService
+
+    init(iconService: TokenIconService = .shared) {
+        self.iconService = iconService
+    }
+
+    func resolvedLogoURL(logoURL: URL?, mint: String?, symbol: String?) async -> URL? {
+        await iconService.resolvedLogoURL(logoURL: logoURL, mint: mint, symbol: symbol)
+    }
+
+    func image(for logoURL: URL?, mint: String?, symbol: String?) async -> UIImage? {
+        await iconService.image(for: logoURL, mint: mint, symbol: symbol)
+    }
+}
+
 private struct JupiterTokenEntry: Decodable {
     let address: String
     let symbol: String

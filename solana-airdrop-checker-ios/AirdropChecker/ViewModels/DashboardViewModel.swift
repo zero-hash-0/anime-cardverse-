@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import UIKit
 
 enum WalletConnectionState: Equatable {
     case disconnected
@@ -7,9 +9,23 @@ enum WalletConnectionState: Equatable {
     case error(String)
 }
 
+enum NFTCountLoadState: Equatable {
+    case idle
+    case loading
+    case success
+    case failure
+}
+
 @MainActor
 final class DashboardViewModel: ObservableObject {
-    @Published var walletAddress = ""
+    @Published var walletAddress = "" {
+        didSet {
+            if oldValue.trimmingCharacters(in: .whitespacesAndNewlines) != walletAddress.trimmingCharacters(in: .whitespacesAndNewlines) {
+                nftCounts = .zero
+                nftCountLoadState = .idle
+            }
+        }
+    }
     @Published var latestEvents: [AirdropEvent] = []
     @Published var historyEvents: [AirdropEvent] = []
     @Published var isLoading = false
@@ -28,12 +44,21 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var hiddenMints: Set<String> = []
     @Published private(set) var connectionState: WalletConnectionState = .disconnected
     @Published private(set) var statusMessage: String?
+    @Published private(set) var nftCounts: WalletNFTCounts = .zero
+    @Published private(set) var nftCountLoadState: NFTCountLoadState = .idle
+    @Published var showReminderBanner = false
+    @Published var maintenanceMode = false
+    @Published var maintenanceMessage = "Service is temporarily unavailable. Please try again in a few minutes."
 
     private let service: AirdropMonitorService
     private let notificationManager: NotificationManager
     private let walletSession: WalletSessionManager
     private let historyStore: EventHistoryStoring
     private let solanaNewsService: SolanaNewsProviding
+    private let analytics: AnalyticsTracking
+    private let feedback: FeedbackSubmitting
+    private let errorTracker: ErrorTracking
+    private let nftCountService: WalletNFTCounting
     private let defaults: UserDefaults
 
     private let notificationsEnabledKey = "notifications_enabled"
@@ -41,6 +66,10 @@ final class DashboardViewModel: ObservableObject {
     private let autoScanEnabledKey = "auto_scan_enabled"
     private let favoriteMintsKey = "favorite_mints"
     private let hiddenMintsKey = "hidden_mints"
+    private let lastOpenAtKey = "analytics_last_open_at"
+    private let reminderDismissedAtKey = "reminder_dismissed_at"
+    private var hasTrackedMaintenanceShown = false
+    private var syncInFlight = false
     private var autoScanTask: Task<Void, Never>?
     private var newsRefreshTask: Task<Void, Never>?
     private var newsRotationTask: Task<Void, Never>?
@@ -51,6 +80,10 @@ final class DashboardViewModel: ObservableObject {
         walletSession: WalletSessionManager,
         historyStore: EventHistoryStoring,
         solanaNewsService: SolanaNewsProviding = GoogleSolanaNewsService(),
+        analytics: AnalyticsTracking = BetaAnalyticsService(),
+        feedback: FeedbackSubmitting = BetaFeedbackService(),
+        errorTracker: ErrorTracking = ErrorTrackerService.shared,
+        nftCountService: WalletNFTCounting = NoopWalletNFTCountService(),
         defaults: UserDefaults = .standard
     ) {
         self.service = service
@@ -58,9 +91,13 @@ final class DashboardViewModel: ObservableObject {
         self.walletSession = walletSession
         self.historyStore = historyStore
         self.solanaNewsService = solanaNewsService
+        self.analytics = analytics
+        self.feedback = feedback
+        self.errorTracker = errorTracker
+        self.nftCountService = nftCountService
         self.defaults = defaults
 
-        self.notificationsEnabled = defaults.object(forKey: notificationsEnabledKey) as? Bool ?? true
+        self.notificationsEnabled = defaults.object(forKey: notificationsEnabledKey) as? Bool ?? false
         self.notifyHighRiskOnly = defaults.object(forKey: notifyHighRiskOnlyKey) as? Bool ?? false
         self.autoScanEnabled = defaults.object(forKey: autoScanEnabledKey) as? Bool ?? false
         let favoriteMints = defaults.array(forKey: favoriteMintsKey) as? [String] ?? []
@@ -72,6 +109,7 @@ final class DashboardViewModel: ObservableObject {
         if let connected = walletSession.connectedWallet {
             walletAddress = connected
             connectionState = .connected(connected)
+            nftCountLoadState = .idle
         }
     }
 
@@ -82,6 +120,14 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func onAppear() async {
+        await checkMaintenanceStatus()
+        let now = Date()
+        let previousOpen = defaults.object(forKey: lastOpenAtKey) as? Date
+        defaults.set(now, forKey: lastOpenAtKey)
+        if let previousOpen, now.timeIntervalSince(previousOpen) <= 48 * 60 * 60 {
+            Task { await analytics.track(event: "return_visit_48h", properties: [:]) }
+        }
+        await evaluateReminderEligibility(previousOpen: previousOpen, now: now)
         await notificationManager.refreshAuthorizationStatus()
 
         if let connected = walletSession.connectedWallet, walletAddress.isEmpty {
@@ -93,7 +139,9 @@ final class DashboardViewModel: ObservableObject {
         if latestEvents.isEmpty && historyEvents.isEmpty {
             loadDemoData()
         }
-        await refreshSolanaNews()
+        Task { [weak self] in
+            await self?.refreshSolanaNews()
+        }
         startNewsTickerIfNeeded()
         startNewsRefreshLoopIfNeeded()
         startAutoScanIfNeeded()
@@ -123,6 +171,7 @@ final class DashboardViewModel: ObservableObject {
 
     func connectWallet() {
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task { await analytics.track(event: "wallet_connect_start", properties: [:]) }
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
             connectionState = .error("Enter a valid Solana wallet address.")
             statusMessage = "Invalid wallet format."
@@ -135,6 +184,12 @@ final class DashboardViewModel: ObservableObject {
             walletAddress = connected
             connectionState = .connected(connected)
             statusMessage = "Wallet connected."
+            let walletHash = Self.hashWallet(connected)
+            Task {
+                await analytics.identify(hashedWallet: walletHash)
+                await errorTracker.setUser(hashedWallet: walletHash)
+                await analytics.track(event: "wallet_connect_success", properties: [:])
+            }
         } else {
             connectionState = .error("Unable to set wallet.")
             statusMessage = "Connection failed."
@@ -152,6 +207,8 @@ final class DashboardViewModel: ObservableObject {
         errorMessage = nil
         connectionState = .disconnected
         statusMessage = "Wallet disconnected."
+        nftCounts = .zero
+        nftCountLoadState = .idle
     }
 
     func clearHistory() {
@@ -165,10 +222,26 @@ final class DashboardViewModel: ObservableObject {
             walletAddress = connected
             connectionState = .connected(connected)
             statusMessage = "Wallet loaded from link."
+            nftCountLoadState = .idle
         }
     }
 
-    func refresh() async {
+    func refresh(silent: Bool = false) async {
+        guard !syncInFlight else { return }
+        syncInFlight = true
+        var spinnerWatchdog: Task<Void, Never>?
+        defer {
+            spinnerWatchdog?.cancel()
+            syncInFlight = false
+            isLoading = false
+        }
+
+        let inMaintenance = await checkMaintenanceStatus()
+        guard !inMaintenance else {
+            statusMessage = "Temporarily unavailable."
+            return
+        }
+
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
             errorMessage = "Enter a valid Solana wallet address."
@@ -180,18 +253,65 @@ final class DashboardViewModel: ObservableObject {
         walletAddress = trimmed
         connectWallet()
         guard case .connected = connectionState else { return }
-        isLoading = true
+        let wasFirstSync = service.isSnapshotMissing(wallet: trimmed)
+        let syncStart = Date()
+        if !silent {
+            isLoading = true
+            statusMessage = "Scanning wallet..."
+        }
         errorMessage = nil
-        statusMessage = "Scanning wallet..."
+
+        Task {
+            await analytics.track(event: "sync_start", properties: [:])
+        }
+
+        if wasFirstSync {
+            Task {
+                await analytics.track(event: "initial_sync_start", properties: [:])
+                await errorTracker.breadcrumb(
+                    category: "sync_start",
+                    message: "Initial wallet sync started",
+                    data: ["walletHash": Self.hashWallet(trimmed)]
+                )
+            }
+        }
+
+        spinnerWatchdog = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            if self.isLoading {
+                self.isLoading = false
+                self.statusMessage = "Sync taking longer than expected. Updating in background."
+            }
+        }
 
         do {
-            let newEvents = try await service.checkForAirdrops(wallet: trimmed)
+            async let newEventsTask = service.checkForAirdrops(wallet: trimmed)
+            async let nftCountsTask = nftCountService.fetchCounts(wallet: trimmed)
+            nftCountLoadState = .loading
+            let newEvents = try await newEventsTask
             latestEvents = newEvents
             historyStore.save(newEvents: newEvents)
             historyEvents = historyStore.load()
+            do {
+                let counts = try await nftCountsTask
+                nftCounts = counts
+                nftCountLoadState = .success
+            } catch {
+                nftCountLoadState = .failure
+                await errorTracker.capture(
+                    category: "nft_counting_failed",
+                    message: error.localizedDescription,
+                    httpStatus: nil,
+                    extra: ["wallet": trimmed]
+                )
+            }
             lastCheckedAt = Date()
             connectionState = .connected(trimmed)
             statusMessage = newEvents.isEmpty ? "No airdrops detected." : "Scan complete: \(newEvents.count) events."
+            if wasFirstSync {
+                statusMessage = "Baseline snapshot created. Next refresh compares deltas."
+            }
 
             if notificationsEnabled {
                 let eventsForAlert = notifyHighRiskOnly
@@ -199,14 +319,247 @@ final class DashboardViewModel: ObservableObject {
                     : newEvents
                 await notificationManager.notifyNewAirdrops(eventsForAlert)
             }
+            Task {
+                let durationMs = String(Int(Date().timeIntervalSince(syncStart) * 1000))
+                await analytics.track(
+                    event: "sync_success",
+                    properties: ["sync_ms": durationMs]
+                )
+            }
+            if wasFirstSync {
+                Task {
+                    let durationMs = String(Int(Date().timeIntervalSince(syncStart) * 1000))
+                    await analytics.track(
+                        event: "initial_sync_success",
+                        properties: [
+                            "eventCount": String(newEvents.count),
+                            "sync_duration_ms": durationMs
+                        ]
+                    )
+                    await errorTracker.breadcrumb(
+                        category: "sync_success",
+                        message: "Initial wallet sync completed",
+                        data: ["eventCount": String(newEvents.count)]
+                    )
+                }
+            }
 
         } catch {
             errorMessage = error.localizedDescription
             connectionState = .error(error.localizedDescription)
             statusMessage = "Scan failed."
+            let errorMeta = Self.categorizeError(error)
+            await errorTracker.capture(
+                category: errorMeta.category,
+                message: error.localizedDescription,
+                httpStatus: errorMeta.httpStatus,
+                extra: ["flow": "wallet_sync"]
+            )
+            Task {
+                let durationMs = String(Int(Date().timeIntervalSince(syncStart) * 1000))
+                await analytics.track(
+                    event: "sync_fail",
+                    properties: [
+                        "error": errorMeta.category,
+                        "httpStatus": errorMeta.httpStatus.map(String.init) ?? "unknown",
+                        "sync_ms": durationMs
+                    ]
+                )
+            }
+            if wasFirstSync {
+                Task {
+                    let durationMs = String(Int(Date().timeIntervalSince(syncStart) * 1000))
+                    await analytics.track(
+                        event: "initial_sync_fail",
+                        properties: [
+                            "error_category": errorMeta.category,
+                            "http_status": errorMeta.httpStatus.map(String.init) ?? "unknown",
+                            "sync_duration_ms": durationMs
+                        ]
+                    )
+                    await errorTracker.breadcrumb(
+                        category: "sync_fail",
+                        message: "Initial wallet sync failed",
+                        data: [
+                            "errorCategory": errorMeta.category,
+                            "httpStatus": errorMeta.httpStatus.map(String.init) ?? "unknown"
+                        ]
+                    )
+                }
+            }
+            if nftCountLoadState == .loading {
+                nftCountLoadState = .failure
+            }
         }
 
-        isLoading = false
+    }
+
+    func trackPullToRefresh() {
+        Task {
+            await analytics.track(event: "pull_to_refresh", properties: [:])
+        }
+    }
+
+    func trackAlertsTabOpen() {
+        Task {
+            await analytics.track(event: "alerts_open", properties: [:])
+            await analytics.track(event: "alerts_tab_open", properties: [:])
+            await errorTracker.breadcrumb(category: "alerts_open", message: "Alerts tab opened", data: [:])
+        }
+    }
+
+    func trackActivityTabOpen() {
+        Task {
+            await analytics.track(event: "activity_open", properties: [:])
+            await analytics.track(event: "activity_tab_open", properties: [:])
+        }
+    }
+
+    func trackAlertOpen(alertType: String) {
+        Task {
+            await analytics.track(
+                event: "alert_open",
+                properties: [
+                    "type": alertType,
+                    "alert_type": alertType
+                ]
+            )
+        }
+    }
+
+    func trackClaimOpen(claimType: String) {
+        Task {
+            await analytics.track(event: "claim_open", properties: ["claim_type": claimType])
+            await errorTracker.breadcrumb(category: "claim_open", message: "Claim opened", data: ["claim_type": claimType])
+        }
+    }
+
+    func trackFeedbackOpen() {
+        Task {
+            await analytics.track(event: "feedback_open", properties: [:])
+        }
+    }
+
+    func trackEnvironmentMismatch(environment: String, baseURL: String) {
+        Task {
+            await analytics.track(
+                event: "env_mismatch_detected",
+                properties: [
+                    "environment": environment,
+                    "base_url": baseURL
+                ]
+            )
+        }
+    }
+
+    func trackDiagnosticsOpened() {
+        Task {
+            await analytics.track(event: "diagnostics_opened", properties: [:])
+        }
+    }
+
+    func trackPreflightRan() {
+        Task {
+            await analytics.track(event: "preflight_ran", properties: [:])
+        }
+    }
+
+    func trackPreflightFailed(reason: String) {
+        Task {
+            await analytics.track(
+                event: "preflight_failed",
+                properties: ["reason": reason]
+            )
+        }
+    }
+
+    func retryMaintenanceCheck() async {
+        _ = await checkMaintenanceStatus()
+    }
+
+    func diagnosticsSendTestAnalyticsEvent(env: String, baseURL: String) async {
+        await analytics.track(
+            event: "test_event",
+            properties: [
+                "event_name": "test_event",
+                "env": env,
+                "baseUrl": baseURL
+            ]
+        )
+    }
+
+    func diagnosticsSendTestFeedback() async -> Bool {
+        let walletHash = Self.hashWallet(walletAddress.trimmingCharacters(in: .whitespacesAndNewlines))
+        return await feedback.send(
+            message: "TestFlight feedback test",
+            hashedWallet: walletHash,
+            screenshotBase64: nil
+        )
+    }
+
+    func diagnosticsSendTestNonFatalError() async {
+        await errorTracker.capture(
+            category: "testflight_non_fatal",
+            message: "TestFlight non-fatal test",
+            httpStatus: nil,
+            extra: ["source": "diagnostics", "type": "captureMessage"]
+        )
+    }
+
+    var diagnosticsHashedWalletPresent: Bool {
+        Self.hashWallet(walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)) != "none"
+    }
+
+    var isMaintenanceMode: Bool {
+        maintenanceMode
+    }
+
+    func trackOnboardingViewed() {
+        Task {
+            await analytics.track(event: "onboarding_viewed", properties: [:])
+        }
+    }
+
+    func trackOnboardingDismissed() {
+        Task {
+            await analytics.track(event: "onboarding_dismissed", properties: [:])
+        }
+    }
+
+    func trackOnboardingFeedbackTapped() {
+        Task {
+            await analytics.track(event: "onboarding_feedback_tapped", properties: [:])
+        }
+    }
+
+    func dismissReminderBanner() {
+        showReminderBanner = false
+        defaults.set(Date(), forKey: reminderDismissedAtKey)
+        Task {
+            await analytics.track(event: "reminder_dismissed", properties: [:])
+        }
+    }
+
+    func reminderFeedbackTapped() {
+        showReminderBanner = false
+        defaults.set(Date(), forKey: reminderDismissedAtKey)
+        Task {
+            await analytics.track(event: "reminder_feedback_tapped", properties: [:])
+        }
+    }
+
+    func submitFeedback(message: String, screenshotBase64: String?) async -> Bool {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let walletHash = Self.hashWallet(walletAddress.trimmingCharacters(in: .whitespacesAndNewlines))
+        let ok = await feedback.send(message: trimmed, hashedWallet: walletHash, screenshotBase64: screenshotBase64)
+        await analytics.track(
+            event: ok ? "feedback_sent" : "feedback_failed",
+            properties: [
+                "hashed_wallet": walletHash
+            ]
+        )
+        return ok
     }
 
     var displayedEvents: [AirdropEvent] {
@@ -277,6 +630,29 @@ final class DashboardViewModel: ObservableObject {
         hiddenMints.count
     }
 
+    var totalNFTCount: Int {
+        nftCounts.total
+    }
+
+    var dataFreshnessText: String {
+        guard let lastCheckedAt else { return "Connect wallet to load data." }
+        return "Last Updated: \(lastCheckedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    var freshnessWarning: String? {
+        guard let lastCheckedAt else { return nil }
+        let age = Date().timeIntervalSince(lastCheckedAt)
+        return age > 6 * 60 * 60 ? "Data may be outdated. Pull to refresh." : nil
+    }
+
+    var dataConfidenceLabel: String {
+        guard let lastCheckedAt else { return "" }
+        let age = Date().timeIntervalSince(lastCheckedAt)
+        if age <= 30 * 60 { return "High confidence data" }
+        if age <= 6 * 60 * 60 { return "Partial data" }
+        return "Delayed sync"
+    }
+
     var securityScore: Int {
         var score = 34
         if hasValidWalletAddress { score += 20 }
@@ -285,6 +661,15 @@ final class DashboardViewModel: ObservableObject {
         if autoScanEnabled { score += 10 }
         if hiddenTokenCount > 0 { score += 8 }
         return min(score, 100)
+    }
+
+    var integrityTopFactors: [String] {
+        var factors: [String] = []
+        factors.append(hasValidWalletAddress ? "Wallet format checks pass (+20)." : "No valid wallet connected yet.")
+        factors.append(notificationsEnabled ? "Alert channel enabled (+14)." : "Alert channel disabled.")
+        factors.append(notifyHighRiskOnly ? "High-risk notification filter active (+10)." : "All-risk notification mode enabled.")
+        factors.append(autoScanEnabled ? "Background scanning active (+10)." : "Background scanning disabled.")
+        return Array(factors.prefix(3))
     }
 
     func loadDemoData() {
@@ -412,7 +797,7 @@ final class DashboardViewModel: ObservableObject {
 
                 guard let self else { break }
                 if !self.walletAddress.isEmpty {
-                    await self.refresh()
+                    await self.refresh(silent: true)
                 }
             }
         }
@@ -481,6 +866,101 @@ final class DashboardViewModel: ObservableObject {
             .prefix(7)
             .map { $0.key.capitalized }
     }
+
+    private func evaluateReminderEligibility(previousOpen: Date?, now: Date) async {
+        guard walletSession.connectedWallet != nil else {
+            showReminderBanner = false
+            return
+        }
+        guard let previousOpen else {
+            showReminderBanner = false
+            return
+        }
+
+        let inactivity = now.timeIntervalSince(previousOpen)
+        guard inactivity > 48 * 60 * 60 else {
+            showReminderBanner = false
+            return
+        }
+
+        let dismissedAt = defaults.object(forKey: reminderDismissedAtKey) as? Date
+        if let dismissedAt, dismissedAt > previousOpen {
+            showReminderBanner = false
+            return
+        }
+
+        showReminderBanner = true
+        await analytics.track(event: "reminder_shown_48h", properties: [:])
+    }
+
+    private func checkMaintenanceStatus() async -> Bool {
+        guard let base = AppEnvironment.current.apiBaseURL,
+              let endpoint = URL(string: "/v1/meta", relativeTo: base) else {
+            return false
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.timeoutInterval = 10
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                return maintenanceMode
+            }
+            let meta = try JSONDecoder().decode(MaintenanceMetaResponse.self, from: data)
+            maintenanceMode = meta.maintenanceMode
+            if let message = meta.maintenanceMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+                maintenanceMessage = message
+            }
+
+            if maintenanceMode && !hasTrackedMaintenanceShown {
+                hasTrackedMaintenanceShown = true
+                await analytics.track(event: "maintenance_shown", properties: [:])
+            }
+            if !maintenanceMode {
+                hasTrackedMaintenanceShown = false
+            }
+            return maintenanceMode
+        } catch {
+            return maintenanceMode
+        }
+    }
+
+    private static func hashWallet(_ wallet: String) -> String {
+        let trimmed = wallet.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "none" }
+        let digest = SHA256.hash(data: Data(trimmed.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return String(hex.prefix(12))
+    }
+
+    private static func categorizeError(_ error: Error) -> (category: String, httpStatus: Int?) {
+        if let rpc = error as? SolanaRPCError {
+            switch rpc {
+            case .timeout:
+                return ("network_timeout", nil)
+            case .invalidResponse:
+                return ("api_non_200", nil)
+            case .rpcError(let msg):
+                return ("sync_pipeline_failure", Int(msg.filter(\.isNumber)))
+            case .unsupported:
+                return ("sync_pipeline_failure", nil)
+            }
+        }
+        if let urlError = error as? URLError {
+            if urlError.code == .timedOut { return ("network_timeout", nil) }
+            return ("network_error", nil)
+        }
+        if error is DecodingError {
+            return ("decoding_error", nil)
+        }
+        return ("sync_pipeline_failure", nil)
+    }
+}
+
+private struct MaintenanceMetaResponse: Decodable {
+    let maintenanceMode: Bool
+    let maintenanceMessage: String?
 }
 
 struct SolanaHeadline: Identifiable, Equatable {
@@ -499,6 +979,7 @@ protocol SolanaNewsProviding {
 enum SolanaNewsError: LocalizedError {
     case invalidResponse
     case parseFailed
+    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -506,6 +987,8 @@ enum SolanaNewsError: LocalizedError {
             return "Invalid news response."
         case .parseFailed:
             return "Could not parse news feed."
+        case .timeout:
+            return "News request timed out."
         }
     }
 }
@@ -521,7 +1004,7 @@ final class GoogleSolanaNewsService: SolanaNewsProviding {
         guard let url = URL(string: "https://news.google.com/rss/search?q=solana&hl=en-US&gl=US&ceid=US:en") else {
             throw SolanaNewsError.invalidResponse
         }
-        let (data, response) = try await session.data(from: url)
+        let (data, response) = try await requestWithRetry(url: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw SolanaNewsError.invalidResponse
         }
@@ -533,6 +1016,29 @@ final class GoogleSolanaNewsService: SolanaNewsProviding {
             return haystack.contains("solana")
         }
         return Array(filtered.prefix(25))
+    }
+
+    private func requestWithRetry(url: URL, maxAttempts: Int = 3) async throws -> (Data, URLResponse) {
+        var attempt = 0
+        var delayNs: UInt64 = 350_000_000
+        var lastError: Error = SolanaNewsError.invalidResponse
+        while attempt < maxAttempts {
+            do {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 10
+                return try await session.data(for: request)
+            } catch {
+                lastError = error
+                attempt += 1
+                if attempt >= maxAttempts { break }
+                try? await Task.sleep(nanoseconds: delayNs)
+                delayNs = min(delayNs * 2, 2_000_000_000)
+            }
+        }
+        if let urlError = lastError as? URLError, urlError.code == .timedOut {
+            throw SolanaNewsError.timeout
+        }
+        throw lastError
     }
 }
 
@@ -629,5 +1135,11 @@ private final class SolanaRSSParser: NSObject, XMLParserDelegate {
             return parts.dropLast().joined(separator: " - ")
         }
         return title
+    }
+}
+
+private struct NoopWalletNFTCountService: WalletNFTCounting {
+    func fetchCounts(wallet: String) async throws -> WalletNFTCounts {
+        .zero
     }
 }
