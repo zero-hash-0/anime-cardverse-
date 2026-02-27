@@ -73,6 +73,7 @@ struct ContentView: View {
     @State private var didJustConnect = false
     @State private var walletConnectStatus: WalletConnectStatus?
     @State private var connectButtonPulse = false
+    @State private var showJustUpdatedStatus = false
     @State private var didApplyLaunchTab = false
     @AppStorage("betaOnboardingSeen") private var betaOnboardingSeen = false
 
@@ -233,22 +234,25 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xs) {
                 Text("Wallet Yield & Risk Intelligence")
-                    .font(DesignSystem.Typography.h2)
+                    .font(DesignSystem.Typography.cardTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Monitoring")
-                    .font(DesignSystem.Typography.meta)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Spacer()
+                MonitoringDot(size: 6)
             }
-            Spacer()
-            MonitoringDot()
+
+            Text("Monitoring")
+                .font(DesignSystem.Typography.meta)
+                .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.86))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.top, DesignSystem.Spacing.sm)
-        .padding(.bottom, DesignSystem.Spacing.xs)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
         .background(
             ZStack {
                 Rectangle()
@@ -280,10 +284,144 @@ struct ContentView: View {
         .shadow(color: Color.black.opacity(0.35), radius: 16, x: 0, y: 6)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.sm, style: .continuous))
         .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.top, DesignSystem.Spacing.xs)
+        .padding(.top, 4)
         .onLongPressGesture(minimumDuration: 0.7) {
             guard diagnosticsEnabled else { return }
             showAbout = true
+        }
+    }
+
+    private var scanStatusRow: some View {
+        Button {
+            guard scanStatusState.retryable else { return }
+            Haptic.medium()
+            Task { await performRefresh() }
+        } label: {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
+                    Text("Scan status")
+                        .font(DesignSystem.Typography.meta.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    Spacer()
+
+                    if scanStatusState.showsLoading {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(DesignSystem.Colors.textSecondary)
+                    } else {
+                        Image(systemName: scanStatusState.icon)
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text(scanStatusState.message)
+                        .font(DesignSystem.Typography.meta.weight(.medium))
+                }
+                .foregroundStyle(scanStatusState.color)
+
+                if scanStatusState.showsLoading {
+                    ScanStatusLoadingLine()
+                        .transition(.opacity)
+                }
+            }
+            .padding(.top, 2)
+        }
+        .buttonStyle(.plain)
+        .disabled(!scanStatusState.retryable)
+        .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
+    }
+
+    private var scanStatusState: ScanStatusState {
+#if DEBUG
+        let env = ProcessInfo.processInfo.environment
+        if env["PRISMESH_FORCE_SCAN_LOADING"] == "1" {
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+        }
+        if env["PRISMESH_FORCE_SCAN_ERROR"] == "1" {
+            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true)
+        }
+#endif
+
+        if let error = viewModel.errorMessage, !error.isEmpty {
+            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true)
+        }
+
+        if isConnectingWallet {
+            return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+        }
+
+        if firstSyncInProgress || isRefreshing || viewModel.isLoading {
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+        }
+
+        if showJustUpdatedStatus {
+            return ScanStatusState(message: "Updated just now", icon: "checkmark.circle.fill", color: DesignSystem.Colors.accent, showsLoading: false, retryable: false)
+        }
+
+        if let checked = viewModel.lastCheckedAt {
+            let age = Date().timeIntervalSince(checked)
+            if age > 6 * 60 * 60 {
+                return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: DesignSystem.Colors.warning, showsLoading: false, retryable: true)
+            }
+            return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false)
+        }
+
+        return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false)
+    }
+
+    private var relativeFormatter: RelativeDateTimeFormatter {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }
+
+    private func markScanUpdated() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showJustUpdatedStatus = true
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showJustUpdatedStatus = false
+                }
+            }
+        }
+    }
+
+    private struct ScanStatusState {
+        let message: String
+        let icon: String
+        let color: Color
+        let showsLoading: Bool
+        let retryable: Bool
+    }
+
+    private struct ScanStatusLoadingLine: View {
+        @State private var phase: CGFloat = -1
+
+        var body: some View {
+            Capsule()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 2)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.clear, DesignSystem.Colors.accent.opacity(0.45), Color.clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: 72, height: 2)
+                        .offset(x: phase * 220)
+                }
+                .clipped()
+                .onAppear {
+                    phase = -1
+                    withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                        phase = 1
+                    }
+                }
         }
     }
 
@@ -352,26 +490,9 @@ struct ContentView: View {
                         Spacer()
                     }
 
-                    if let rowStatus = walletRowStatus {
-                        HStack(spacing: DesignSystem.Spacing.xs) {
-                            if rowStatus.showsProgress {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                    .tint(DesignSystem.Colors.textSecondary)
-                            } else {
-                                Image(systemName: rowStatus.icon)
-                            }
-                            Text(rowStatus.message)
-                        }
-                        .font(DesignSystem.Typography.meta.weight(.medium))
-                        .foregroundStyle(rowStatus.color)
-                        .padding(.top, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+                    scanStatusRow
                 }
-                .animation(.easeInOut(duration: 0.2), value: walletConnectStatus)
-                .animation(.easeInOut(duration: 0.2), value: firstSyncInProgress)
+                .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
 
                 if !viewModel.hasValidWalletAddress {
                     emptyStateCard
@@ -1212,9 +1333,19 @@ struct ContentView: View {
 
         guard viewModel.hasValidWalletAddress else { return }
         guard viewModel.lastCheckedAt == nil else { return }
+        let previousLast = viewModel.lastCheckedAt
         firstSyncInProgress = true
         await viewModel.refresh()
         firstSyncInProgress = false
+        if viewModel.errorMessage == nil, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
+            Haptic.success()
+            markScanUpdated()
+        } else if viewModel.errorMessage != nil {
+            Haptic.warning()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                walletConnectStatus = .failure
+            }
+        }
     }
 
     private func sendFeedback() async {
@@ -1235,9 +1366,16 @@ struct ContentView: View {
     @MainActor
     private func performRefresh() async {
         guard !isRefreshing else { return }
+        let previousLast = viewModel.lastCheckedAt
         isRefreshing = true
         defer { isRefreshing = false }
         await viewModel.refresh()
+        if viewModel.errorMessage == nil, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
+            Haptic.success()
+            markScanUpdated()
+        } else if viewModel.errorMessage != nil {
+            Haptic.warning()
+        }
     }
 
     private var confidenceColor: Color {
@@ -1250,56 +1388,6 @@ struct ContentView: View {
 
     private var connectWalletButtonColor: Color {
         DesignSystem.Colors.accent.opacity(0.88)
-    }
-
-    private var walletRowStatus: WalletRowStatus? {
-        if firstSyncInProgress {
-            return WalletRowStatus(
-                message: "Syncing wallet data...",
-                icon: "arrow.triangle.2.circlepath",
-                color: DesignSystem.Colors.textSecondary,
-                showsProgress: true
-            )
-        }
-
-        switch walletConnectStatus {
-        case .connecting:
-            return WalletRowStatus(
-                message: "Connecting to wallet...",
-                icon: "link",
-                color: DesignSystem.Colors.textSecondary,
-                showsProgress: true
-            )
-        case .success:
-            return WalletRowStatus(
-                message: "Connected ✓",
-                icon: "checkmark.circle.fill",
-                color: DesignSystem.Colors.accent,
-                showsProgress: false
-            )
-        case .failure:
-            return WalletRowStatus(
-                message: viewModel.errorMessage ?? "Connection failed. Try again.",
-                icon: "exclamationmark.triangle.fill",
-                color: DesignSystem.Colors.danger,
-                showsProgress: false
-            )
-        case .none:
-            if let checked = viewModel.lastCheckedAt {
-                return WalletRowStatus(
-                    message: "Last synced: \(checked.formatted(date: .omitted, time: .shortened))",
-                    icon: "clock",
-                    color: DesignSystem.Colors.textSecondary,
-                    showsProgress: false
-                )
-            }
-            return WalletRowStatus(
-                message: "Ready",
-                icon: "checkmark.seal",
-                color: DesignSystem.Colors.textSecondary,
-                showsProgress: false
-            )
-        }
     }
 
     @ViewBuilder
@@ -1659,13 +1747,6 @@ private struct TabItemView: View {
     }
 }
 
-private struct WalletRowStatus {
-    let message: String
-    let icon: String
-    let color: Color
-    let showsProgress: Bool
-}
-
 private struct ConnectWalletButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -1716,16 +1797,18 @@ private struct StatTripletRow: View {
 }
 
 struct MonitoringDot: View {
+    var size: CGFloat = 8
     @State private var isPulsing = false
 
     var body: some View {
         Circle()
-            .fill(Color.green)
-            .frame(width: 8, height: 8)
-            .scaleEffect(isPulsing ? 1.2 : 0.8)
+            .fill(Color.green.opacity(0.9))
+            .frame(width: size, height: size)
+            .scaleEffect(isPulsing ? 1.14 : 0.88)
+            .opacity(isPulsing ? 0.95 : 0.68)
             .onAppear { isPulsing = true }
             .animation(
-                .easeInOut(duration: 1).repeatForever(),
+                .easeInOut(duration: 1.2).repeatForever(),
                 value: isPulsing
             )
     }
