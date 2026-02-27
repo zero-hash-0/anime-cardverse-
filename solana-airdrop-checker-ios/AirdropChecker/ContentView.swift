@@ -54,6 +54,14 @@ private enum AlertFilterChip: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct ContentView: View {
     @StateObject private var viewModel: DashboardViewModel
     @FocusState private var walletFieldFocused: Bool
@@ -75,6 +83,8 @@ struct ContentView: View {
     @State private var connectButtonPulse = false
     @State private var showJustUpdatedStatus = false
     @State private var didApplyLaunchTab = false
+    @State private var isRetryingScanStatus = false
+    @State private var scrollY: CGFloat = 0
     @AppStorage("betaOnboardingSeen") private var betaOnboardingSeen = false
 
     init(viewModel: DashboardViewModel) {
@@ -231,9 +241,17 @@ struct ContentView: View {
             )
             .presentationDetents([.medium, .large])
         }
+        .onPreferenceChange(ScrollOffsetKey.self) { value in
+            scrollY = value
+        }
     }
 
     private var header: some View {
+        let effectiveScrollY = selectedTab == .home ? scrollY : 0
+        let t = min(1, max(0, (-effectiveScrollY) / 120))
+        let materialOpacity = 0.55 - (0.25 * t)
+        let overlayDark = 0.16 - (0.08 * t)
+
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xs) {
                 Text("Wallet Yield & Risk Intelligence")
@@ -253,36 +271,19 @@ struct ContentView: View {
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.top, 6)
         .padding(.bottom, 4)
-        .background(
-            ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.08),
-                        Color.clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color.black.opacity(0.25)
-                    ],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-            }
-        )
+        .background(Rectangle().fill(.ultraThinMaterial).opacity(materialOpacity))
+        .background(Color.black.opacity(overlayDark))
         .overlay(
             Rectangle()
                 .fill(Color.white.opacity(0.06))
                 .frame(height: 1),
             alignment: .top
         )
-        .shadow(color: Color.black.opacity(0.35), radius: 16, x: 0, y: 6)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.sm, style: .continuous))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+        }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.top, 4)
         .onLongPressGesture(minimumDuration: 0.7) {
@@ -292,19 +293,61 @@ struct ContentView: View {
     }
 
     private var scanStatusRow: some View {
-        Button {
-            guard scanStatusState.retryable else { return }
-            Haptic.medium()
-            Task { await performRefresh() }
-        } label: {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
-                HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
-                    Text("Scan status")
-                        .font(DesignSystem.Typography.meta.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
+                Text("Scan status")
+                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                    Spacer()
+                Spacer()
 
+                if scanStatusState.retryable {
+                    Button {
+                        guard !isRetryingScanStatus else { return }
+                        Haptic.medium()
+                        isRetryingScanStatus = true
+                        Task {
+                            await performRefresh()
+                            await MainActor.run {
+                                isRetryingScanStatus = false
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: DesignSystem.Spacing.xs) {
+                            if isRetryingScanStatus {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .tint(scanStatusState.color)
+                                Text("Retrying...")
+                                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                            } else {
+                                Image(systemName: scanStatusState.icon)
+                                    .font(.caption.weight(.semibold))
+                                Text(scanStatusState.message)
+                                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                                Text("Retry")
+                                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.bold))
+                            }
+                        }
+                        .foregroundStyle(scanStatusState.color)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(scanStatusState.color.opacity(scanStatusState.isError ? 0.16 : 0.12))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(scanStatusState.color.opacity(scanStatusState.isError ? 0.40 : 0.22), lineWidth: 1)
+                        )
+                        .contentShape(Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRetryingScanStatus)
+                    .frame(minHeight: 44)
+                } else {
                     if scanStatusState.showsLoading {
                         ProgressView()
                             .controlSize(.mini)
@@ -315,18 +358,16 @@ struct ContentView: View {
                     }
                     Text(scanStatusState.message)
                         .font(DesignSystem.Typography.meta.weight(.medium))
-                }
-                .foregroundStyle(scanStatusState.color)
-
-                if scanStatusState.showsLoading {
-                    ScanStatusLoadingLine()
-                        .transition(.opacity)
+                        .foregroundStyle(scanStatusState.color)
                 }
             }
-            .padding(.top, 2)
+
+            if scanStatusState.showsLoading {
+                ScanStatusLoadingLine()
+                    .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!scanStatusState.retryable)
+        .padding(.top, 2)
         .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
     }
 
@@ -334,38 +375,38 @@ struct ContentView: View {
 #if DEBUG
         let env = ProcessInfo.processInfo.environment
         if env["PRISMESH_FORCE_SCAN_LOADING"] == "1" {
-            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
         }
         if env["PRISMESH_FORCE_SCAN_ERROR"] == "1" {
-            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true)
+            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
         }
 #endif
 
         if let error = viewModel.errorMessage, !error.isEmpty {
-            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true)
+            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
         }
 
         if isConnectingWallet {
-            return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+            return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
         }
 
         if firstSyncInProgress || isRefreshing || viewModel.isLoading {
-            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false)
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
         }
 
         if showJustUpdatedStatus {
-            return ScanStatusState(message: "Updated just now", icon: "checkmark.circle.fill", color: DesignSystem.Colors.accent, showsLoading: false, retryable: false)
+            return ScanStatusState(message: "Updated just now", icon: "checkmark.circle.fill", color: DesignSystem.Colors.accent, showsLoading: false, retryable: false, isError: false)
         }
 
         if let checked = viewModel.lastCheckedAt {
             let age = Date().timeIntervalSince(checked)
             if age > 6 * 60 * 60 {
-                return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: DesignSystem.Colors.warning, showsLoading: false, retryable: true)
+                return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: DesignSystem.Colors.warning, showsLoading: false, retryable: true, isError: false)
             }
-            return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false)
+            return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
         }
 
-        return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false)
+        return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
     }
 
     private var relativeFormatter: RelativeDateTimeFormatter {
@@ -394,6 +435,7 @@ struct ContentView: View {
         let color: Color
         let showsLoading: Bool
         let retryable: Bool
+        let isError: Bool
     }
 
     private struct ScanStatusLoadingLine: View {
@@ -428,6 +470,12 @@ struct ContentView: View {
     private var homeView: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.xl) {
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("scroll")).minY)
+                }
+                .frame(height: 0)
+
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                     WalletInputView(
                         walletAddress: $viewModel.walletAddress,
@@ -532,6 +580,7 @@ struct ContentView: View {
             viewModel.trackPullToRefresh()
             await performRefresh()
         }
+        .coordinateSpace(name: "scroll")
     }
 
     private var heroIntelligenceCard: some View {
@@ -645,13 +694,36 @@ struct ContentView: View {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     breakdownPill(title: "Tokens", count: tokensCount)
                     breakdownPill(title: "Contracts", count: contractsCount)
-                    breakdownPill(title: "NFTs", countText: nftPillCountText)
+                    breakdownPill(
+                        title: "NFTs",
+                        countText: nftPillCountText,
+                        badgeSystemImage: viewModel.nftCountLoadState == .failure ? "exclamationmark.triangle.fill" : nil,
+                        showsSpinner: viewModel.nftCountLoadState == .loading || viewModel.nftCountLoadState == .idle
+                    )
                         .onTapGesture {
                             guard viewModel.nftCountLoadState == .failure else { return }
+                            Haptic.medium()
                             Task { await performRefresh() }
                         }
                 }
                 .padding(.vertical, 2)
+            }
+
+            if viewModel.nftCountLoadState == .failure {
+                Button {
+                    Haptic.medium()
+                    Task { await performRefresh() }
+                } label: {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Couldn’t load NFTs. Tap to retry.")
+                    }
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -660,7 +732,12 @@ struct ContentView: View {
         breakdownPill(title: title, countText: "\(count)")
     }
 
-    private func breakdownPill(title: String, countText: String) -> some View {
+    private func breakdownPill(
+        title: String,
+        countText: String,
+        badgeSystemImage: String? = nil,
+        showsSpinner: Bool = false
+    ) -> some View {
         HStack(spacing: DesignSystem.Spacing.xs) {
             Text(title)
                 .font(DesignSystem.Typography.body)
@@ -668,6 +745,15 @@ struct ContentView: View {
             Text("(\(countText))")
                 .font(DesignSystem.Typography.body.weight(.semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
+            if showsSpinner {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(DesignSystem.Colors.textMuted)
+            } else if let badgeSystemImage {
+                Image(systemName: badgeSystemImage)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -1446,7 +1532,7 @@ struct ContentView: View {
         case .success:
             return "\(viewModel.totalNFTCount)"
         case .failure:
-            return "!"
+            return "—"
         }
     }
 
