@@ -121,7 +121,12 @@ private struct AirdropEventRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                TokenLogoView(url: event.metadata.logoURL)
+                TokenIconView(
+                    mint: event.mint,
+                    symbol: event.metadata.symbol,
+                    logoURL: event.metadata.logoURL,
+                    size: 38
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -243,7 +248,12 @@ private struct EventDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
-                    TokenLogoView(url: event.metadata.logoURL)
+                    TokenIconView(
+                        mint: event.mint,
+                        symbol: event.metadata.symbol,
+                        logoURL: event.metadata.logoURL,
+                        size: 38
+                    )
                     VStack(alignment: .leading, spacing: 3) {
                         Text(event.metadata.name)
                             .font(.title3.weight(.bold))
@@ -403,29 +413,133 @@ private struct RiskBadge: View {
     }
 }
 
-private struct TokenLogoView: View {
-    let url: URL?
+struct TokenIconView: View {
+    let mint: String?
+    let symbol: String
+    let logoURL: URL?
+    let size: CGFloat
+
+    @State private var resolvedLogoURL: URL?
 
     var body: some View {
         Group {
-            if let url {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    ProgressView()
+            if let resolvedLogoURL {
+                AsyncImage(
+                    url: resolvedLogoURL,
+                    transaction: Transaction(animation: .easeOut(duration: 0.22))
+                ) { phase in
+                    switch phase {
+                    case .empty:
+                        placeholder
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .interpolation(.high)
+                            .antialiased(true)
+                            .scaledToFill()
+                            .transition(.opacity)
+                    case .failure:
+                        placeholder
+                    @unknown default:
+                        placeholder
+                    }
                 }
             } else {
-                Image(systemName: "bitcoinsign.circle")
-                    .resizable()
-                    .scaledToFit()
-                    .padding(6)
-                    .foregroundStyle(.white.opacity(0.6))
+                placeholder
             }
         }
-        .frame(width: 38, height: 38)
-        .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .task(id: resolveKey) {
+            resolvedLogoURL = await TokenIconService.shared.resolvedLogoURL(
+                logoURL: logoURL,
+                mint: mint,
+                symbol: symbol
+            )
+        }
+    }
+
+    private var placeholder: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.24, green: 0.26, blue: 0.29),
+                        Color(red: 0.13, green: 0.14, blue: 0.16)
+                    ],
+                    center: .center,
+                    startRadius: 2,
+                    endRadius: max(12, size * 0.55)
+                )
+            )
+            .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
+            .overlay(
+                Text(fallbackGlyph)
+                    .font(.system(size: max(12, size * 0.42), weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.74))
+            )
+    }
+
+    private var resolveKey: String {
+        let mintPart = mint ?? "none"
+        let urlPart = logoURL?.absoluteString ?? "none"
+        return "\(mintPart)|\(symbol)|\(urlPart)"
+    }
+
+    private var fallbackGlyph: String {
+        let symbolCandidate = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source: String
+        if !symbolCandidate.isEmpty {
+            source = symbolCandidate
+        } else if let mint, !mint.isEmpty {
+            source = mint
+        } else {
+            return "•"
+        }
+
+        guard let first = source.first else { return "•" }
+        let value = String(first).uppercased()
+        guard let scalar = value.unicodeScalars.first else { return "•" }
+        return CharacterSet.letters.contains(scalar) ? value : "•"
     }
 }
+
+#if DEBUG
+struct TokenIconDebugPreview: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(spacing: 8) {
+                TokenIconView(
+                    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+                    symbol: "JUP",
+                    logoURL: URL(string: "https://static.jup.ag/jup/icon.png"),
+                    size: 44
+                )
+                Text("Known")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 8) {
+                TokenIconView(
+                    mint: "UnknownMint111111111111111111111111111111111111",
+                    symbol: "",
+                    logoURL: nil,
+                    size: 44
+                )
+                Text("Fallback")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+    }
+}
+
+#Preview("Token Icon Debug") {
+    TokenIconDebugPreview()
+}
+#endif
