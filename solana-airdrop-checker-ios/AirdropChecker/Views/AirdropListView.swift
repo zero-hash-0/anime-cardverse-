@@ -122,8 +122,8 @@ private struct AirdropEventRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TokenIconView(
-                    mint: event.mint,
                     symbol: event.metadata.symbol,
+                    mint: event.mint,
                     logoURL: event.metadata.logoURL,
                     size: 38
                 )
@@ -249,8 +249,8 @@ private struct EventDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     TokenIconView(
-                        mint: event.mint,
                         symbol: event.metadata.symbol,
+                        mint: event.mint,
                         logoURL: event.metadata.logoURL,
                         size: 38
                     )
@@ -415,11 +415,23 @@ private struct RiskBadge: View {
 
 struct TokenIconView: View {
     let mint: String?
-    let symbol: String
+    let symbol: String?
     let logoURL: URL?
     let size: CGFloat
 
     @State private var resolvedLogoURL: URL?
+
+    init(
+        symbol: String?,
+        mint: String,
+        logoURL: URL?,
+        size: CGFloat = 44
+    ) {
+        self.symbol = symbol
+        self.mint = mint
+        self.logoURL = logoURL
+        self.size = size
+    }
 
     var body: some View {
         Group {
@@ -484,11 +496,11 @@ struct TokenIconView: View {
     private var resolveKey: String {
         let mintPart = mint ?? "none"
         let urlPart = logoURL?.absoluteString ?? "none"
-        return "\(mintPart)|\(symbol)|\(urlPart)"
+        return "\(mintPart)|\(symbol ?? "none")|\(urlPart)"
     }
 
     private var fallbackGlyph: String {
-        let symbolCandidate = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        let symbolCandidate = (symbol ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let source: String
         if !symbolCandidate.isEmpty {
             source = symbolCandidate
@@ -511,8 +523,8 @@ struct TokenIconDebugPreview: View {
         HStack(spacing: 16) {
             VStack(spacing: 8) {
                 TokenIconView(
-                    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
                     symbol: "JUP",
+                    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
                     logoURL: URL(string: "https://static.jup.ag/jup/icon.png"),
                     size: 44
                 )
@@ -523,8 +535,8 @@ struct TokenIconDebugPreview: View {
 
             VStack(spacing: 8) {
                 TokenIconView(
-                    mint: "UnknownMint111111111111111111111111111111111111",
                     symbol: "",
+                    mint: "UnknownMint111111111111111111111111111111111111",
                     logoURL: nil,
                     size: 44
                 )

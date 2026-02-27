@@ -423,22 +423,22 @@ actor TokenIconService {
             .appendingPathComponent("PrismMeshTokenIcons", isDirectory: true)
     }
 
-    func resolvedLogoURL(logoURL: URL?, mint: String?, symbol: String) async -> URL? {
+    func resolvedLogoURL(logoURL: URL?, mint: String?, symbol: String?) async -> URL? {
         await resolveURL(logoURL: logoURL, mint: mint, symbol: symbol)
     }
 
-    func image(for logoURL: URL?, mint: String?, symbol: String) async -> UIImage? {
+    func image(for logoURL: URL?, mint: String?, symbol: String?) async -> UIImage? {
         let resolvedURL = await resolvedLogoURL(logoURL: logoURL, mint: mint, symbol: symbol)
         guard let resolvedURL else { return nil }
         return await image(for: resolvedURL)
     }
 
-    private func resolveURL(logoURL: URL?, mint: String?, symbol: String) async -> URL? {
+    private func resolveURL(logoURL: URL?, mint: String?, symbol: String?) async -> URL? {
         if let logoURL { return logoURL }
         if let mint, !mint.isEmpty {
             return await metadataService.metadata(for: mint).logoURL
         }
-        if let metadata = await metadataService.metadata(forSymbol: symbol) {
+        if let symbol, !symbol.isEmpty, let metadata = await metadataService.metadata(forSymbol: symbol) {
             return metadata.logoURL
         }
         return nil
