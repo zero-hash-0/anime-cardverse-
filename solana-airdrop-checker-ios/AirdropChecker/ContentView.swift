@@ -252,7 +252,7 @@ struct ContentView: View {
         let materialOpacity = 0.55 - (0.25 * t)
         let overlayDark = 0.16 - (0.08 * t)
 
-        VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xs) {
                 Text("Wallet Yield & Risk Intelligence")
                     .font(DesignSystem.Typography.cardTitle)
