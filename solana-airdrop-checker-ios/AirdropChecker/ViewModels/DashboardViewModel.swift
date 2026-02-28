@@ -16,21 +16,33 @@ enum NFTCountLoadState: Equatable {
     case failure
 }
 
+enum ScanStatus: Equatable {
+    case idle
+    case scanning
+    case success(Date)
+    case failure(String)
+}
+
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var walletAddress = "" {
         didSet {
             if oldValue.trimmingCharacters(in: .whitespacesAndNewlines) != walletAddress.trimmingCharacters(in: .whitespacesAndNewlines) {
                 nftCounts = .zero
+                nftCount = 0
                 nftCountLoadState = .idle
+                clearRefreshState(resetLastCheckedAt: true)
             }
         }
     }
     @Published var latestEvents: [AirdropEvent] = []
     @Published var historyEvents: [AirdropEvent] = []
     @Published var isLoading = false
+    @Published var isRefreshing = false
     @Published var errorMessage: String?
     @Published var lastCheckedAt: Date?
+    @Published var lastRefreshError: String?
+    @Published var scanStatus: ScanStatus = .idle
     @Published var notificationsEnabled = true
     @Published var notifyHighRiskOnly = false
     @Published var autoScanEnabled = false
@@ -45,7 +57,9 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var connectionState: WalletConnectionState = .disconnected
     @Published private(set) var statusMessage: String?
     @Published private(set) var nftCounts: WalletNFTCounts = .zero
+    @Published private(set) var nftCount: Int = 0
     @Published private(set) var nftCountLoadState: NFTCountLoadState = .idle
+    @Published private(set) var nftDiagnosticsSummary: String?
     @Published var showReminderBanner = false
     @Published var maintenanceMode = false
     @Published var maintenanceMessage = "Service is temporarily unavailable. Please try again in a few minutes."
@@ -110,6 +124,7 @@ final class DashboardViewModel: ObservableObject {
             walletAddress = connected
             connectionState = .connected(connected)
             nftCountLoadState = .idle
+            clearRefreshState(resetLastCheckedAt: false)
         }
     }
 
@@ -171,6 +186,7 @@ final class DashboardViewModel: ObservableObject {
 
     func connectWallet() {
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        clearRefreshState(resetLastCheckedAt: true)
         Task { await analytics.track(event: "wallet_connect_start", properties: [:]) }
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
             connectionState = .error("Enter a valid Solana wallet address.")
@@ -208,7 +224,10 @@ final class DashboardViewModel: ObservableObject {
         connectionState = .disconnected
         statusMessage = "Wallet disconnected."
         nftCounts = .zero
+        nftCount = 0
         nftCountLoadState = .idle
+        nftDiagnosticsSummary = nil
+        clearRefreshState(resetLastCheckedAt: true)
     }
 
     func clearHistory() {
@@ -223,22 +242,27 @@ final class DashboardViewModel: ObservableObject {
             connectionState = .connected(connected)
             statusMessage = "Wallet loaded from link."
             nftCountLoadState = .idle
+            clearRefreshState(resetLastCheckedAt: false)
         }
     }
 
     func refresh(silent: Bool = false) async {
         guard !syncInFlight else { return }
         syncInFlight = true
+        isRefreshing = true
         var spinnerWatchdog: Task<Void, Never>?
         defer {
             spinnerWatchdog?.cancel()
             syncInFlight = false
             isLoading = false
+            isRefreshing = false
         }
 
         let inMaintenance = await checkMaintenanceStatus()
         guard !inMaintenance else {
             statusMessage = "Temporarily unavailable."
+            lastRefreshError = "Temporarily unavailable."
+            scanStatus = .failure(lastRefreshError ?? "Temporarily unavailable.")
             return
         }
 
@@ -247,6 +271,8 @@ final class DashboardViewModel: ObservableObject {
             errorMessage = "Enter a valid Solana wallet address."
             connectionState = .error("Enter a valid Solana wallet address.")
             statusMessage = "Wallet required before scan."
+            lastRefreshError = "Enter a valid Solana wallet address."
+            scanStatus = .failure(lastRefreshError ?? "Wallet required before scan.")
             return
         }
 
@@ -260,6 +286,9 @@ final class DashboardViewModel: ObservableObject {
             statusMessage = "Scanning wallet..."
         }
         errorMessage = nil
+        lastRefreshError = nil
+        scanStatus = .scanning
+        print("[Refresh] start wallet=\(trimmed)")
 
         Task {
             await analytics.track(event: "sync_start", properties: [:])
@@ -287,18 +316,30 @@ final class DashboardViewModel: ObservableObject {
 
         do {
             async let newEventsTask = service.checkForAirdrops(wallet: trimmed)
-            async let nftCountsTask = nftCountService.fetchCounts(wallet: trimmed)
+            async let nftSummaryTask = nftCountService.fetchNFTSummary(owner: trimmed)
             nftCountLoadState = .loading
             let newEvents = try await newEventsTask
             latestEvents = newEvents
             historyStore.save(newEvents: newEvents)
             historyEvents = historyStore.load()
             do {
-                let counts = try await nftCountsTask
+                let summary = try await nftSummaryTask
+                let counts = WalletNFTCounts(
+                    standardNFTCount: summary.uncompressedCount,
+                    compressedNFTCount: summary.compressedCount
+                )
                 nftCounts = counts
+                nftCount = summary.totalCount
+                nftDiagnosticsSummary = NFTCountDiagnostics(
+                    candidates: summary.debug.candidates,
+                    metadataFound: summary.debug.metadataFound,
+                    editionsFound: summary.debug.editionsFound,
+                    compressedFound: summary.debug.compressedFound
+                ).summary + " via \(summary.dataSource.rawValue)"
                 nftCountLoadState = .success
             } catch {
                 nftCountLoadState = .failure
+                nftDiagnosticsSummary = nil
                 await errorTracker.capture(
                     category: "nft_counting_failed",
                     message: error.localizedDescription,
@@ -307,11 +348,16 @@ final class DashboardViewModel: ObservableObject {
                 )
             }
             lastCheckedAt = Date()
+            lastRefreshError = nil
+            if let checked = lastCheckedAt {
+                scanStatus = .success(checked)
+            }
             connectionState = .connected(trimmed)
             statusMessage = newEvents.isEmpty ? "No airdrops detected." : "Scan complete: \(newEvents.count) events."
             if wasFirstSync {
                 statusMessage = "Baseline snapshot created. Next refresh compares deltas."
             }
+            print("[Refresh] success tokens=\(newEvents.count) nfts=\(nftCounts.total)")
 
             if notificationsEnabled {
                 let eventsForAlert = notifyHighRiskOnly
@@ -348,6 +394,9 @@ final class DashboardViewModel: ObservableObject {
             errorMessage = error.localizedDescription
             connectionState = .error(error.localizedDescription)
             statusMessage = "Scan failed."
+            lastRefreshError = error.localizedDescription
+            scanStatus = .failure(lastRefreshError ?? "Refresh failed.")
+            print("[Refresh] failed: \(error.localizedDescription)")
             let errorMeta = Self.categorizeError(error)
             await errorTracker.capture(
                 category: errorMeta.category,
@@ -392,6 +441,14 @@ final class DashboardViewModel: ObservableObject {
             }
         }
 
+    }
+
+    private func clearRefreshState(resetLastCheckedAt: Bool) {
+        lastRefreshError = nil
+        scanStatus = .idle
+        if resetLastCheckedAt {
+            lastCheckedAt = nil
+        }
     }
 
     func trackPullToRefresh() {
@@ -631,7 +688,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     var totalNFTCount: Int {
-        nftCounts.total
+        nftCount
     }
 
     var dataFreshnessText: String {
@@ -1139,7 +1196,15 @@ private final class SolanaRSSParser: NSObject, XMLParserDelegate {
 }
 
 private struct NoopWalletNFTCountService: WalletNFTCounting {
+    func fetchNFTSummary(owner: String) async throws -> NFTSummary {
+        .zero
+    }
+
     func fetchCounts(wallet: String) async throws -> WalletNFTCounts {
         .zero
+    }
+
+    func fetchDetailedCounts(wallet: String) async throws -> NFTCountFetchResult {
+        NFTCountFetchResult(counts: .zero, diagnostics: .zero)
     }
 }
