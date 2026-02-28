@@ -611,7 +611,9 @@ struct TokenIconDebugPreview: View {
     }
 }
 
+#if DEBUG
 #Preview("Token Icon Debug") {
     TokenIconDebugPreview()
 }
+#endif
 #endif
