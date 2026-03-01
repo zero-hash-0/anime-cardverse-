@@ -6,6 +6,7 @@ final class AirdropMonitorService {
     private let riskScoring: ClaimRiskScoring
     private let defaults: UserDefaults
     private let snapshotKeyPrefix = "wallet_snapshot_"
+    private let snapshotUpdatedAtKeyPrefix = "wallet_snapshot_updated_at_"
 
     init(
         rpcClient: SolanaRPCFetching,
@@ -23,14 +24,28 @@ final class AirdropMonitorService {
         let current = try await rpcClient.fetchTokenBalances(owner: wallet)
         let previous = loadSnapshot(wallet: wallet)
 
-        let previousByMint = Dictionary(uniqueKeysWithValues: previous.map { ($0.mint, $0.amount) })
+        let increases: [(token: TokenBalance, oldAmount: Decimal)] = await Task.detached(priority: .utility) {
+            var previousByMint: [String: Decimal] = [:]
+            for token in previous where previousByMint[token.mint] == nil {
+                previousByMint[token.mint] = token.amount
+            }
+            var output: [(token: TokenBalance, oldAmount: Decimal)] = []
+            output.reserveCapacity(current.count)
+            for token in current {
+                let oldAmount = previousByMint[token.mint] ?? 0
+                if token.amount > oldAmount {
+                    output.append((token, oldAmount))
+                }
+            }
+            return output
+        }.value
 
         var events: [AirdropEvent] = []
-        events.reserveCapacity(current.count)
+        events.reserveCapacity(increases.count)
 
-        for token in current {
-            let oldAmount = previousByMint[token.mint] ?? 0
-            guard token.amount > oldAmount else { continue }
+        for increase in increases {
+            let token = increase.token
+            let oldAmount = increase.oldAmount
 
             let metadata = await metadataService.metadata(for: token.mint)
             let risk = riskScoring.evaluate(eventDelta: token.amount - oldAmount, metadata: metadata)
@@ -50,9 +65,18 @@ final class AirdropMonitorService {
         return events.sorted { $0.delta > $1.delta }
     }
 
+    func isSnapshotMissing(wallet: String) -> Bool {
+        loadSnapshot(wallet: wallet).isEmpty
+    }
+
+    func cachedSnapshotUpdatedAt(wallet: String) -> Date? {
+        defaults.object(forKey: snapshotUpdatedAtKeyPrefix + wallet) as? Date
+    }
+
     private func saveSnapshot(_ snapshot: [TokenBalance], wallet: String) {
         guard let encoded = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(encoded, forKey: snapshotKeyPrefix + wallet)
+        defaults.set(Date(), forKey: snapshotUpdatedAtKeyPrefix + wallet)
     }
 
     private func loadSnapshot(wallet: String) -> [TokenBalance] {

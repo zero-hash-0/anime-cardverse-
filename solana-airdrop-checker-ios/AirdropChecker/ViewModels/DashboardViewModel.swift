@@ -23,6 +23,36 @@ enum ScanStatus: Equatable {
     case failure(String)
 }
 
+enum RefreshTrigger: String {
+    case manual
+    case pullToRefresh
+    case autoScan
+    case initial
+    case retry
+}
+
+private extension WalletConnectionState {
+    var debugLabel: String {
+        switch self {
+        case .disconnected: return "disconnected"
+        case .connecting: return "connecting"
+        case .connected: return "connected"
+        case .error(let message): return "error(\(message))"
+        }
+    }
+}
+
+private extension ScanStatus {
+    var debugLabel: String {
+        switch self {
+        case .idle: return "idle"
+        case .scanning: return "scanning"
+        case .success(let date): return "success(\(date.timeIntervalSince1970))"
+        case .failure(let message): return "failure(\(message))"
+        }
+    }
+}
+
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var walletAddress = "" {
@@ -31,6 +61,10 @@ final class DashboardViewModel: ObservableObject {
                 nftCounts = .zero
                 nftCount = 0
                 nftCountLoadState = .idle
+                nftItems = []
+                walletValidationMessage = nil
+                statusMessage = nil
+                didRunPostPaintInitialScan = false
                 clearRefreshState(resetLastCheckedAt: true)
             }
         }
@@ -39,10 +73,33 @@ final class DashboardViewModel: ObservableObject {
     @Published var historyEvents: [AirdropEvent] = []
     @Published var isLoading = false
     @Published var isRefreshing = false
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+#if DEBUG
+            guard oldValue != errorMessage else { return }
+            scanLog("errorMessage: \(oldValue ?? "nil") -> \(errorMessage ?? "nil")")
+#endif
+        }
+    }
     @Published var lastCheckedAt: Date?
-    @Published var lastRefreshError: String?
-    @Published var scanStatus: ScanStatus = .idle
+    @Published var lastRefreshError: String? {
+        didSet {
+#if DEBUG
+            guard oldValue != lastRefreshError else { return }
+            scanLog("lastRefreshError: \(oldValue ?? "nil") -> \(lastRefreshError ?? "nil")")
+#endif
+        }
+    }
+    @Published var scanStatus: ScanStatus = .idle {
+        didSet {
+#if DEBUG
+            guard oldValue != scanStatus else { return }
+            scanLog("scanStatus: \(oldValue.debugLabel) -> \(scanStatus.debugLabel)")
+#endif
+        }
+    }
+    @Published private(set) var showActionableScanFailure = false
+    @Published private(set) var passiveScanFailureMessage: String?
     @Published var notificationsEnabled = true
     @Published var notifyHighRiskOnly = false
     @Published var autoScanEnabled = false
@@ -60,9 +117,11 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var nftCount: Int = 0
     @Published private(set) var nftCountLoadState: NFTCountLoadState = .idle
     @Published private(set) var nftDiagnosticsSummary: String?
+    @Published private(set) var nftItems: [NFTItem] = []
     @Published var showReminderBanner = false
     @Published var maintenanceMode = false
     @Published var maintenanceMessage = "Service is temporarily unavailable. Please try again in a few minutes."
+    @Published private(set) var walletValidationMessage: String?
 
     private let service: AirdropMonitorService
     private let notificationManager: NotificationManager
@@ -84,6 +143,17 @@ final class DashboardViewModel: ObservableObject {
     private let reminderDismissedAtKey = "reminder_dismissed_at"
     private var hasTrackedMaintenanceShown = false
     private var syncInFlight = false
+    private var refreshAttemptCounter = 0
+    private var activeRefreshRequestID = 0
+    private var lastRefreshRequestAt: Date = .distantPast
+    private var latestRefreshHardFailure = false
+    private var lastRefreshTrigger: RefreshTrigger = .manual
+    private var didRunOnAppear = false
+    private var didRunPostPaintInitialScan = false
+    private var scanStatusThrottleTask: Task<Void, Never>?
+    private var lastScanStatusEmitAt: Date = .distantPast
+    private var scanTask: Task<Void, Never>?
+    private var lastScanTaskResult = false
     private var autoScanTask: Task<Void, Never>?
     private var newsRefreshTask: Task<Void, Never>?
     private var newsRotationTask: Task<Void, Never>?
@@ -129,13 +199,21 @@ final class DashboardViewModel: ObservableObject {
     }
 
     deinit {
+        scanStatusThrottleTask?.cancel()
+        scanTask?.cancel()
         autoScanTask?.cancel()
         newsRefreshTask?.cancel()
         newsRotationTask?.cancel()
     }
 
     func onAppear() async {
-        await checkMaintenanceStatus()
+        guard !didRunOnAppear else {
+            scanLog("onAppear skipped (already initialized)")
+            return
+        }
+        didRunOnAppear = true
+
+        _ = await checkMaintenanceStatus()
         let now = Date()
         let previousOpen = defaults.object(forKey: lastOpenAtKey) as? Date
         defaults.set(now, forKey: lastOpenAtKey)
@@ -150,25 +228,28 @@ final class DashboardViewModel: ObservableObject {
             connectionState = .connected(connected)
         }
 
-        historyEvents = historyStore.load()
         if latestEvents.isEmpty && historyEvents.isEmpty {
             loadDemoData()
         }
-        Task { [weak self] in
-            await self?.refreshSolanaNews()
-        }
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        await refreshSolanaNews()
         startNewsTickerIfNeeded()
         startNewsRefreshLoopIfNeeded()
         startAutoScanIfNeeded()
     }
 
     func onDisappear() {
+        scanStatusThrottleTask?.cancel()
+        scanTask?.cancel()
+        scanTask = nil
         autoScanTask?.cancel()
         autoScanTask = nil
         newsRefreshTask?.cancel()
         newsRefreshTask = nil
         newsRotationTask?.cancel()
         newsRotationTask = nil
+        scanLog("onDisappear: cancelled auto/news timers")
     }
 
     func persistNotificationPreference() {
@@ -189,10 +270,12 @@ final class DashboardViewModel: ObservableObject {
         clearRefreshState(resetLastCheckedAt: true)
         Task { await analytics.track(event: "wallet_connect_start", properties: [:]) }
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
+            walletValidationMessage = "Enter a valid Solana wallet address."
             connectionState = .error("Enter a valid Solana wallet address.")
             statusMessage = "Invalid wallet format."
             return
         }
+        walletValidationMessage = nil
 
         connectionState = .connecting
         walletSession.connect(manualAddress: trimmed)
@@ -227,6 +310,7 @@ final class DashboardViewModel: ObservableObject {
         nftCount = 0
         nftCountLoadState = .idle
         nftDiagnosticsSummary = nil
+        nftItems = []
         clearRefreshState(resetLastCheckedAt: true)
     }
 
@@ -246,39 +330,149 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    func refresh(silent: Bool = false) async {
-        guard !syncInFlight else { return }
+    @discardableResult
+    func startScan(reason: String) async -> Bool {
+        let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AddressValidator.isLikelySolanaAddress(trimmed) else {
+            walletValidationMessage = "Enter a valid Solana wallet address."
+            statusMessage = "Paste a valid wallet to begin."
+            lastRefreshError = nil
+            setScanStatus(.idle, throttle: false)
+            scanLog("startScan skipped (invalid wallet) reason=\(reason)")
+            return false
+        }
+
+        guard scanTask == nil else {
+            scanLog("startScan skipped (task in-flight) reason=\(reason)")
+            return false
+        }
+
+        let trigger: RefreshTrigger
+        let silent: Bool
+        if reason == "post_paint" {
+            guard !didRunPostPaintInitialScan else {
+                scanLog("startScan skipped (already ran) reason=\(reason)")
+                return false
+            }
+            didRunPostPaintInitialScan = true
+            trigger = .initial
+            silent = true
+        } else if reason == "auto_scan" {
+            trigger = .autoScan
+            silent = true
+        } else if reason == "retry" {
+            trigger = .retry
+            silent = false
+        } else if reason == "pull_to_refresh" {
+            trigger = .pullToRefresh
+            silent = false
+        } else {
+            trigger = .manual
+            silent = false
+        }
+
+        scanLog("startScan accepted reason=\(reason)")
+        scanTask = Task { [weak self] in
+            guard let self else { return }
+            let ok = await self.refresh(silent: silent, trigger: trigger)
+            await MainActor.run {
+                self.lastScanTaskResult = ok
+                self.scanTask = nil
+            }
+        }
+        if silent {
+            // Do not block first paint / background polling on silent scans.
+            return true
+        }
+        await scanTask?.value
+        return lastScanTaskResult
+    }
+
+    @discardableResult
+    func refresh(silent: Bool = false, trigger: RefreshTrigger = .manual) async -> Bool {
+        latestRefreshHardFailure = false
+        lastRefreshTrigger = trigger
+        let now = Date()
+        if !silent && now.timeIntervalSince(lastRefreshRequestAt) < 0.8 {
+            scanLog("refresh skipped (debounced) trigger=\(trigger.rawValue)")
+            return false
+        }
+        lastRefreshRequestAt = now
+
+        guard !syncInFlight else {
+            scanLog("refresh skipped (in-flight) trigger=\(trigger.rawValue)")
+            return false
+        }
         syncInFlight = true
         isRefreshing = true
+        refreshAttemptCounter += 1
+        activeRefreshRequestID += 1
+        let requestID = activeRefreshRequestID
+        scanLog("refresh #\(refreshAttemptCounter) start req=\(requestID) trigger=\(trigger.rawValue) silent=\(silent)")
         var spinnerWatchdog: Task<Void, Never>?
         defer {
             spinnerWatchdog?.cancel()
             syncInFlight = false
             isLoading = false
             isRefreshing = false
+            scanLog("refresh req=\(requestID) end")
         }
 
         let inMaintenance = await checkMaintenanceStatus()
         guard !inMaintenance else {
             statusMessage = "Temporarily unavailable."
             lastRefreshError = "Temporarily unavailable."
-            scanStatus = .failure(lastRefreshError ?? "Temporarily unavailable.")
-            return
+            latestRefreshHardFailure = true
+            if shouldShowActionableFailure(for: trigger) {
+                showActionableScanFailure = true
+                passiveScanFailureMessage = nil
+                setScanStatus(.failure(lastRefreshError ?? "Temporarily unavailable."))
+            } else if trigger == .autoScan, lastCheckedAt != nil {
+                showActionableScanFailure = false
+                passiveScanFailureMessage = "Monitoring paused"
+                scanLog("refresh req=\(requestID) maintenance in background; preserving previous status")
+            } else {
+                showActionableScanFailure = false
+                passiveScanFailureMessage = "Monitoring warming up"
+                setScanStatus(.idle)
+            }
+            return false
         }
 
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AddressValidator.isLikelySolanaAddress(trimmed) else {
-            errorMessage = "Enter a valid Solana wallet address."
-            connectionState = .error("Enter a valid Solana wallet address.")
-            statusMessage = "Wallet required before scan."
-            lastRefreshError = "Enter a valid Solana wallet address."
-            scanStatus = .failure(lastRefreshError ?? "Wallet required before scan.")
-            return
+            walletValidationMessage = "Enter a valid Solana wallet address."
+            errorMessage = nil
+            statusMessage = "Paste a valid wallet to begin."
+            // Invalid/empty wallet should not present scan failure banner.
+            lastRefreshError = nil
+            showActionableScanFailure = false
+            passiveScanFailureMessage = nil
+            setScanStatus(.idle, throttle: false)
+            scanLog("refresh req=\(requestID) blocked: invalid wallet")
+            return false
         }
+        walletValidationMessage = nil
 
-        walletAddress = trimmed
-        connectWallet()
-        guard case .connected = connectionState else { return }
+        walletAddress = trimmed // normalize spacing if user pasted with whitespace
+        if case .connected(let connectedAddress) = connectionState, connectedAddress == trimmed {
+            // Keep existing connected session.
+        } else {
+            connectionState = .connecting
+            walletSession.connect(manualAddress: trimmed)
+            guard let connected = walletSession.connectedWallet, connected == trimmed else {
+                connectionState = .error("Unable to connect wallet for scan.")
+                errorMessage = "Unable to connect wallet for scan."
+                statusMessage = "Connection failed."
+                scanLog("refresh req=\(requestID) blocked: wallet connection failed")
+                return false
+            }
+            connectionState = .connected(connected)
+        }
+        guard case .connected = connectionState else {
+            scanLog("refresh req=\(requestID) blocked: wallet state=\(connectionState.debugLabel)")
+            return false
+        }
         let wasFirstSync = service.isSnapshotMissing(wallet: trimmed)
         let syncStart = Date()
         if !silent {
@@ -287,8 +481,10 @@ final class DashboardViewModel: ObservableObject {
         }
         errorMessage = nil
         lastRefreshError = nil
-        scanStatus = .scanning
-        print("[Refresh] start wallet=\(trimmed)")
+        showActionableScanFailure = false
+        passiveScanFailureMessage = nil
+        setScanStatus(.scanning)
+        scanLog("refresh req=\(requestID) scanning walletHash=\(Self.hashWallet(trimmed))")
 
         Task {
             await analytics.track(event: "sync_start", properties: [:])
@@ -319,24 +515,16 @@ final class DashboardViewModel: ObservableObject {
             async let nftSummaryTask = nftCountService.fetchNFTSummary(owner: trimmed)
             nftCountLoadState = .loading
             let newEvents = try await newEventsTask
+            guard requestID == activeRefreshRequestID else {
+                scanLog("refresh req=\(requestID) ignored (stale result)")
+                return false
+            }
             latestEvents = newEvents
             historyStore.save(newEvents: newEvents)
             historyEvents = historyStore.load()
             do {
                 let summary = try await nftSummaryTask
-                let counts = WalletNFTCounts(
-                    standardNFTCount: summary.uncompressedCount,
-                    compressedNFTCount: summary.compressedCount
-                )
-                nftCounts = counts
-                nftCount = summary.totalCount
-                nftDiagnosticsSummary = NFTCountDiagnostics(
-                    candidates: summary.debug.candidates,
-                    metadataFound: summary.debug.metadataFound,
-                    editionsFound: summary.debug.editionsFound,
-                    compressedFound: summary.debug.compressedFound
-                ).summary + " via \(summary.dataSource.rawValue)"
-                nftCountLoadState = .success
+                applyNFTSummary(summary, wallet: trimmed)
             } catch {
                 nftCountLoadState = .failure
                 nftDiagnosticsSummary = nil
@@ -348,16 +536,22 @@ final class DashboardViewModel: ObservableObject {
                 )
             }
             lastCheckedAt = Date()
+            errorMessage = nil
             lastRefreshError = nil
             if let checked = lastCheckedAt {
-                scanStatus = .success(checked)
+                setScanStatus(.success(checked))
             }
             connectionState = .connected(trimmed)
-            statusMessage = newEvents.isEmpty ? "No airdrops detected." : "Scan complete: \(newEvents.count) events."
+            let completionStatus = await Task.detached(priority: .utility) {
+                newEvents.isEmpty
+                    ? "No airdrops detected."
+                    : "Scan complete: \(newEvents.count) events."
+            }.value
+            statusMessage = completionStatus
             if wasFirstSync {
                 statusMessage = "Baseline snapshot created. Next refresh compares deltas."
             }
-            print("[Refresh] success tokens=\(newEvents.count) nfts=\(nftCounts.total)")
+            scanLog("refresh req=\(requestID) success tokens=\(newEvents.count) nfts=\(nftCounts.total)")
 
             if notificationsEnabled {
                 let eventsForAlert = notifyHighRiskOnly
@@ -390,13 +584,31 @@ final class DashboardViewModel: ObservableObject {
                 }
             }
 
+            return true
         } catch {
+            guard requestID == activeRefreshRequestID else {
+                scanLog("refresh req=\(requestID) ignored error (stale): \(error.localizedDescription)")
+                return false
+            }
+            latestRefreshHardFailure = true
             errorMessage = error.localizedDescription
             connectionState = .error(error.localizedDescription)
             statusMessage = "Scan failed."
             lastRefreshError = error.localizedDescription
-            scanStatus = .failure(lastRefreshError ?? "Refresh failed.")
-            print("[Refresh] failed: \(error.localizedDescription)")
+            if shouldShowActionableFailure(for: trigger) {
+                showActionableScanFailure = true
+                passiveScanFailureMessage = nil
+                setScanStatus(.failure(lastRefreshError ?? "Refresh failed."))
+            } else if trigger == .autoScan, lastCheckedAt != nil {
+                showActionableScanFailure = false
+                passiveScanFailureMessage = "Monitoring paused"
+                scanLog("refresh req=\(requestID) auto-scan failed; preserving previous scan status")
+            } else {
+                showActionableScanFailure = false
+                passiveScanFailureMessage = "Monitoring warming up"
+                setScanStatus(.idle)
+            }
+            scanLog("refresh req=\(requestID) failed: \(error.localizedDescription)")
             let errorMeta = Self.categorizeError(error)
             await errorTracker.capture(
                 category: errorMeta.category,
@@ -439,13 +651,61 @@ final class DashboardViewModel: ObservableObject {
             if nftCountLoadState == .loading {
                 nftCountLoadState = .failure
             }
+            return false
+        }
+    }
+
+    func refreshNFTCountsOnly() async {
+        let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AddressValidator.isLikelySolanaAddress(trimmed) else {
+            nftCountLoadState = .failure
+            nftDiagnosticsSummary = nil
+            return
         }
 
+        nftCountLoadState = .loading
+        do {
+            let summary = try await nftCountService.fetchNFTSummary(owner: trimmed)
+            applyNFTSummary(summary, wallet: trimmed)
+        } catch {
+            nftCountLoadState = .failure
+            nftDiagnosticsSummary = nil
+            await errorTracker.capture(
+                category: "nft_counting_failed",
+                message: error.localizedDescription,
+                httpStatus: nil,
+                extra: ["wallet": trimmed, "flow": "nft_only_retry"]
+            )
+        }
+    }
+
+    private func applyNFTSummary(_ summary: NFTSummary, wallet: String) {
+        let counts = WalletNFTCounts(
+            standardNFTCount: summary.uncompressedCount,
+            compressedNFTCount: summary.compressedCount
+        )
+        nftCounts = counts
+        nftCount = summary.totalCount
+        nftDiagnosticsSummary = NFTCountDiagnostics(
+            candidates: summary.debug.candidates,
+            metadataFound: summary.debug.metadataFound,
+            editionsFound: summary.debug.editionsFound,
+            compressedFound: summary.debug.compressedFound
+        ).summary + " via \(summary.dataSource.rawValue)"
+        nftCountLoadState = .success
+        Task { [weak self] in
+            guard let self else { return }
+            let items = await self.nftCountService.fetchNFTItems(owner: wallet)
+            self.nftItems = items
+        }
     }
 
     private func clearRefreshState(resetLastCheckedAt: Bool) {
         lastRefreshError = nil
-        scanStatus = .idle
+        showActionableScanFailure = false
+        passiveScanFailureMessage = nil
+        setScanStatus(.idle, throttle: false)
+        errorMessage = nil
         if resetLastCheckedAt {
             lastCheckedAt = nil
         }
@@ -678,9 +938,28 @@ final class DashboardViewModel: ObservableObject {
         return solanaHeadlines[index]
     }
 
-    var hasValidWalletAddress: Bool {
+    var hasWalletAddress: Bool {
+        !walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var isWalletAddressValid: Bool {
         let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         return AddressValidator.isLikelySolanaAddress(trimmed)
+    }
+
+    var isConnected: Bool {
+        if case .connected = connectionState {
+            return true
+        }
+        return false
+    }
+
+    var shouldShowWalletOnboarding: Bool {
+        !hasWalletAddress || !isWalletAddressValid || !isConnected
+    }
+
+    var hasValidWalletAddress: Bool {
+        isWalletAddressValid
     }
 
     var hiddenTokenCount: Int {
@@ -842,22 +1121,101 @@ final class DashboardViewModel: ObservableObject {
         autoScanTask?.cancel()
         autoScanTask = nil
 
-        guard autoScanEnabled else { return }
+        guard autoScanEnabled else {
+            scanLog("auto-scan disabled")
+            return
+        }
+        scanLog("auto-scan enabled")
 
         autoScanTask = Task { [weak self] in
+            var backoffSeconds: UInt64 = 600
+            var consecutiveFailures = 0
+            let maxConsecutiveFailures = 3
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(nanoseconds: 600_000_000_000)
+                    try await Task.sleep(nanoseconds: backoffSeconds * 1_000_000_000)
                 } catch {
                     break
                 }
 
                 guard let self else { break }
-                if !self.walletAddress.isEmpty {
-                    await self.refresh(silent: true)
+                guard AddressValidator.isLikelySolanaAddress(self.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                    await MainActor.run {
+                        self.scanLog("auto-scan skipped (invalid wallet)")
+                        self.statusMessage = "Paste a valid wallet to begin."
+                    }
+                    continue
+                }
+
+                let ok = await self.startScan(reason: "auto_scan")
+                await MainActor.run {
+                    if ok {
+                        backoffSeconds = 600
+                        consecutiveFailures = 0
+                        self.scanLog("auto-scan success; next interval=600s")
+                    } else if self.latestRefreshHardFailure {
+                        consecutiveFailures += 1
+                        backoffSeconds = min(backoffSeconds * 2, 3_600)
+                        self.scanLog("auto-scan hard failure #\(consecutiveFailures); backoff interval=\(backoffSeconds)s")
+                        if consecutiveFailures >= maxConsecutiveFailures {
+                            self.scanLog("auto-scan paused after \(consecutiveFailures) consecutive failures")
+                            self.statusMessage = "Auto-scan paused after repeated failures. Tap Refresh to retry."
+                        }
+                    } else {
+                        backoffSeconds = 600
+                        self.scanLog("auto-scan skipped/no-op; next interval=600s")
+                    }
+                }
+                if consecutiveFailures >= maxConsecutiveFailures {
+                    break
                 }
             }
         }
+    }
+
+    private func setScanStatus(_ newValue: ScanStatus, throttle: Bool = true) {
+        let minimumUpdateInterval: TimeInterval = 0.25
+        if !throttle {
+            scanStatusThrottleTask?.cancel()
+            scanStatus = newValue
+            lastScanStatusEmitAt = Date()
+            return
+        }
+
+        let now = Date()
+        let elapsed = now.timeIntervalSince(lastScanStatusEmitAt)
+        if elapsed >= minimumUpdateInterval {
+            scanStatusThrottleTask?.cancel()
+            scanStatus = newValue
+            lastScanStatusEmitAt = now
+            return
+        }
+
+        let delay = max(0, minimumUpdateInterval - elapsed)
+        scanStatusThrottleTask?.cancel()
+        scanStatusThrottleTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            await MainActor.run {
+                self.scanStatus = newValue
+                self.lastScanStatusEmitAt = Date()
+            }
+        }
+    }
+
+    private func shouldShowActionableFailure(for trigger: RefreshTrigger) -> Bool {
+        switch trigger {
+        case .manual, .pullToRefresh, .retry:
+            return true
+        case .autoScan, .initial:
+            return false
+        }
+    }
+
+    private func scanLog(_ message: String) {
+#if DEBUG
+        print("[ScanDebug] \(Date().timeIntervalSince1970) \(message)")
+#endif
     }
 
     private func startNewsRefreshLoopIfNeeded() {
@@ -964,7 +1322,9 @@ final class DashboardViewModel: ObservableObject {
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return maintenanceMode
             }
-            let meta = try JSONDecoder().decode(MaintenanceMetaResponse.self, from: data)
+            let meta = try await Task.detached(priority: .utility) {
+                try JSONDecoder().decode(MaintenanceMetaResponse.self, from: data)
+            }.value
             maintenanceMode = meta.maintenanceMode
             if let message = meta.maintenanceMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
                 maintenanceMessage = message

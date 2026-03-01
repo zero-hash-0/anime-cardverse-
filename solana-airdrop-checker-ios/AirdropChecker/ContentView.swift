@@ -3,19 +3,19 @@ import PhotosUI
 import UIKit
 
 private enum BetaTab: String, CaseIterable, Identifiable {
-    case home = "Home"
+    case dashboard = "Dashboard"
+    case intelligence = "Intelligence"
     case alerts = "Alerts"
-    case activity = "Activity"
-    case feedback = "Feedback"
+    case profile = "Profile"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .home: return "rectangle.3.group"
-        case .alerts: return "exclamationmark.shield"
-        case .activity: return "chart.line.uptrend.xyaxis"
-        case .feedback: return "questionmark.bubble"
+        case .dashboard: return "house"
+        case .intelligence: return "chart.xyaxis.line"
+        case .alerts: return "bell.badge"
+        case .profile: return "person"
         }
     }
 }
@@ -62,10 +62,16 @@ private struct ScrollOffsetKey: PreferenceKey {
     }
 }
 
+private enum BreakdownSegment: String, CaseIterable {
+    case tokens = "Tokens"
+    case contracts = "Contracts"
+    case nfts = "NFTs"
+}
+
 struct ContentView: View {
     @StateObject private var viewModel: DashboardViewModel
     @FocusState private var walletFieldFocused: Bool
-    @State private var selectedTab: BetaTab = .home
+    @State private var selectedTab: BetaTab = .dashboard
     @State private var firstSyncInProgress = false
     @State private var feedbackMessage = ""
     @State private var feedbackStatus: String?
@@ -76,7 +82,6 @@ struct ContentView: View {
     @State private var radarSweepRotation: Double = -28
     @State private var hasAnimatedRadarSweep = false
     @State private var selectedAlertFilter: AlertFilterChip = .all
-    @State private var isRefreshing = false
     @State private var isConnectingWallet = false
     @State private var didJustConnect = false
     @State private var walletConnectStatus: WalletConnectStatus?
@@ -85,6 +90,8 @@ struct ContentView: View {
     @State private var didApplyLaunchTab = false
     @State private var isRetryingScanStatus = false
     @State private var scrollY: CGFloat = 0
+    @State private var selectedBreakdownSegment: BreakdownSegment = .tokens
+    @State private var didRunInitialLoad = false
     @AppStorage("betaOnboardingSeen") private var betaOnboardingSeen = false
 
     init(viewModel: DashboardViewModel) {
@@ -98,8 +105,17 @@ struct ContentView: View {
 
                 ZStack {
                     switch selectedTab {
-                    case .home:
+                    case .dashboard:
                         homeView
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                )
+                            )
+
+                    case .intelligence:
+                        intelligenceView
                             .transition(
                                 .asymmetric(
                                     insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -116,17 +132,8 @@ struct ContentView: View {
                                 )
                             )
 
-                    case .activity:
-                        activityView
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
-
-                    case .feedback:
-                        feedbackView
+                    case .profile:
+                        profileView
                             .transition(
                                 .asymmetric(
                                     insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -157,10 +164,35 @@ struct ContentView: View {
         }
         .background {
             ZStack {
+                ThemeTokens.Background.base
+                    .ignoresSafeArea()
                 LinearGradient(
-                    colors: [RadarTheme.Palette.backgroundTop, RadarTheme.Palette.backgroundBottom],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                    colors: [
+                        ThemeTokens.Background.top.opacity(0.58),
+                        ThemeTokens.Background.base.opacity(0.42),
+                        Color.clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .init(x: 0.5, y: 0.56)
+                )
+                .ignoresSafeArea()
+                RadialGradient(
+                    colors: [
+                        ThemeTokens.Accent.green.opacity(0.07),
+                        Color.clear
+                    ],
+                    center: .init(x: 0.5, y: 0.28),
+                    startRadius: 20,
+                    endRadius: 420
+                )
+                .ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        ThemeTokens.Background.vignette
+                    ],
+                    startPoint: .center,
+                    endPoint: .bottom
                 )
                 .ignoresSafeArea()
 
@@ -169,10 +201,12 @@ struct ContentView: View {
             }
         }
         .task {
+            guard !didRunInitialLoad else { return }
+            didRunInitialLoad = true
             await viewModel.onAppear()
-            if viewModel.hasValidWalletAddress && !viewModel.isMaintenanceMode {
-                await viewModel.refresh(silent: true)
-            }
+            guard viewModel.hasValidWalletAddress, !viewModel.isMaintenanceMode else { return }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            _ = await viewModel.startScan(reason: "post_paint")
         }
         .onAppear {
             if !didApplyLaunchTab, let launchTab = launchSelectedTab {
@@ -210,7 +244,7 @@ struct ContentView: View {
             } onFeedback: {
                 viewModel.trackOnboardingFeedbackTapped()
                 viewModel.trackFeedbackOpen()
-                selectedTab = .feedback
+                selectedTab = .profile
                 betaOnboardingSeen = true
             } onViewed: {
                 viewModel.trackOnboardingViewed()
@@ -242,54 +276,204 @@ struct ContentView: View {
             .presentationDetents([.medium, .large])
         }
         .onPreferenceChange(ScrollOffsetKey.self) { value in
-            scrollY = value
+            // Throttle offset updates to avoid full-screen re-renders on every scroll pixel.
+            let clamped = max(-180, min(60, value))
+            guard abs(clamped - scrollY) >= 2 else { return }
+            scrollY = clamped
         }
     }
 
     private var header: some View {
-        let effectiveScrollY = selectedTab == .home ? scrollY : 0
+        let effectiveScrollY = selectedTab == .dashboard ? scrollY : 0
         let t = min(1, max(0, (-effectiveScrollY) / 120))
-        let materialOpacity = 0.55 - (0.25 * t)
-        let overlayDark = 0.16 - (0.08 * t)
+        let materialOpacity = 0.40 + (0.28 * t)
+        let overlayDark = 0.20 + (0.24 * t)
 
         return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xs) {
                 Text("Wallet Yield & Risk Intelligence")
-                    .font(DesignSystem.Typography.cardTitle)
+                    .font(.system(size: 21, weight: .semibold, design: .default))
+                    .tracking(0.25)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .minimumScaleFactor(0.74)
+                    .foregroundStyle(Color.white.opacity(0.98))
                 Spacer()
                 MonitoringDot(size: 6)
             }
 
             Text("Monitoring")
-                .font(DesignSystem.Typography.meta)
-                .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.86))
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.66))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
-        .background(Rectangle().fill(.ultraThinMaterial).opacity(materialOpacity))
-        .background(Color.black.opacity(overlayDark))
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+        .background {
+            ZStack {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                ThemeTokens.Card.top.opacity(0.92 + (0.06 * t)),
+                                ThemeTokens.Card.bottom.opacity(0.95 + (0.04 * t))
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                Rectangle().fill(Color.black.opacity(overlayDark + 0.06))
+                LinearGradient(
+                    colors: [ThemeTokens.Card.innerHighlight.opacity(materialOpacity), Color.clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
+        }
         .overlay(
             Rectangle()
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.white.opacity(0.05))
                 .frame(height: 1),
             alignment: .top
         )
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.white.opacity(0.05))
                 .frame(height: 1)
         }
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.top, 4)
         .onLongPressGesture(minimumDuration: 0.7) {
             guard diagnosticsEnabled else { return }
             showAbout = true
         }
+    }
+
+    private var walletControlCard: some View {
+        DarkCard(cornerRadius: 24, contentPadding: 16) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                Text("Wallet")
+                    .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                WalletInputView(
+                    walletAddress: $viewModel.walletAddress,
+                    isFocused: $walletFieldFocused,
+                    walletConnectStatus: nil,
+                    walletErrorMessage: viewModel.walletValidationMessage
+                )
+
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Button {
+                        Task { await connectAndSyncIfNeeded() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isConnectingWallet {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(ThemeTokens.Background.base.opacity(0.95))
+                            }
+                            Text(isConnectingWallet ? "Connecting..." : (viewModel.isConnected ? "Update" : "Connect"))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(DesignSystem.Colors.accent)
+                    )
+                    .disabled(!viewModel.isWalletAddressValid || isConnectingWallet)
+                    .opacity((!viewModel.isWalletAddressValid || isConnectingWallet) ? 0.55 : 1.0)
+                    .buttonStyle(ConnectWalletButtonStyle())
+
+                    Button("Refresh") {
+                        Haptic.medium()
+                        Task { await performRefresh() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(DesignSystem.Colors.surfaceElevated)
+                    .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
+                    .clipShape(Capsule())
+                    .disabled(
+                        !viewModel.isWalletAddressValid ||
+                        viewModel.isRefreshing ||
+                        isConnectingWallet ||
+                        viewModel.isLoading
+                    )
+                    .opacity((!viewModel.isWalletAddressValid || viewModel.isRefreshing) ? 0.55 : 1.0)
+
+                    Spacer()
+                }
+
+                walletControlStatusLine
+            }
+        }
+    }
+
+    private var walletControlStatusLine: some View {
+        HStack(spacing: 8) {
+            if !viewModel.hasWalletAddress {
+                Image(systemName: "info.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("Paste a Solana wallet address to begin.")
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            } else if !viewModel.isWalletAddressValid {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+                Text(viewModel.walletValidationMessage ?? "Enter a valid wallet address.")
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+            } else if scanStatusState.retryable {
+                Button {
+                    guard !isRetryingScanStatus else { return }
+                    Haptic.medium()
+                    isRetryingScanStatus = true
+                    Task {
+                        await performRefresh()
+                        await MainActor.run { isRetryingScanStatus = false }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                        Text(isRetryingScanStatus ? "Retrying..." : "Scan failed. Tap retry.")
+                            .font(DesignSystem.Typography.meta.weight(.semibold))
+                    }
+                    .foregroundStyle(DesignSystem.Colors.danger)
+                }
+                .buttonStyle(.plain)
+            } else if scanStatusState.showsLoading || isConnectingWallet {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(DesignSystem.Colors.textSecondary)
+                Text("Scanning...")
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            } else {
+                Image(systemName: "checkmark.seal")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.safe)
+                Text("Connected (\(shortWalletAddress(viewModel.walletAddress)))")
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            Spacer()
+        }
+    }
+
+    private func shortWalletAddress(_ address: String) -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 10 else { return trimmed }
+        return "\(trimmed.prefix(4))...\(trimmed.suffix(4))"
     }
 
     private var scanStatusRow: some View {
@@ -322,31 +506,26 @@ struct ContentView: View {
                                     .font(DesignSystem.Typography.meta.weight(.semibold))
                             } else {
                                 Image(systemName: scanStatusState.icon)
-                                    .font(.caption.weight(.semibold))
-                                Text(scanStatusState.message)
-                                    .font(DesignSystem.Typography.meta.weight(.semibold))
-                                Text("Retry")
-                                    .font(DesignSystem.Typography.meta.weight(.semibold))
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.bold))
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Scan failed. Tap to retry.")
+                                    .font(.system(size: 12, weight: .semibold))
                             }
                         }
                         .foregroundStyle(scanStatusState.color)
                         .padding(.horizontal, 12)
-                        .frame(minHeight: 44)
+                        .padding(.vertical, 9)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(scanStatusState.color.opacity(scanStatusState.isError ? 0.16 : 0.12))
+                                .fill(ThemeTokens.Accent.criticalMutedBackground)
                         )
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(scanStatusState.color.opacity(scanStatusState.isError ? 0.40 : 0.22), lineWidth: 1)
+                                .strokeBorder(scanStatusState.color.opacity(0.38), lineWidth: 1)
                         )
                         .contentShape(Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(isRetryingScanStatus)
-                    .frame(minHeight: 44)
                 } else {
                     if scanStatusState.showsLoading {
                         ProgressView()
@@ -366,6 +545,12 @@ struct ContentView: View {
                 ScanStatusLoadingLine()
                     .transition(.opacity)
             }
+            if scanStatusState.retryable, let scanErrorCodeText {
+                Text(scanErrorCodeText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .padding(.top, 2)
         .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
@@ -378,41 +563,58 @@ struct ContentView: View {
             return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
         }
         if env["PRISMESH_FORCE_SCAN_ERROR"] == "1" {
-            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
+            return ScanStatusState(message: "Scan failed. Tap to retry.", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
         }
 #endif
 
-        if let error = viewModel.errorMessage, !error.isEmpty {
-            return ScanStatusState(message: "Error — tap to retry", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
-        }
-
-        if isConnectingWallet {
-            return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
-        }
-
-        if firstSyncInProgress || isRefreshing || viewModel.isLoading {
+        switch viewModel.scanStatus {
+        case .failure:
+            if viewModel.showActionableScanFailure {
+                return ScanStatusState(
+                    message: "Scan failed. Tap to retry.",
+                    icon: "exclamationmark.triangle.fill",
+                    color: DesignSystem.Colors.danger,
+                    showsLoading: false,
+                    retryable: true,
+                    isError: true
+                )
+            }
+            return ScanStatusState(
+                message: viewModel.passiveScanFailureMessage ?? "Monitoring warming up",
+                icon: "clock.badge.exclamationmark",
+                color: DesignSystem.Colors.textSecondary,
+                showsLoading: false,
+                retryable: false,
+                isError: false
+            )
+        case .scanning:
+            if isConnectingWallet {
+                return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
+            }
             return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
-        }
-
-        if showJustUpdatedStatus {
-            return ScanStatusState(message: "Updated just now", icon: "checkmark.circle.fill", color: DesignSystem.Colors.accent, showsLoading: false, retryable: false, isError: false)
-        }
-
-        if let checked = viewModel.lastCheckedAt {
+        case .success(let checked):
             let age = Date().timeIntervalSince(checked)
             if age > 6 * 60 * 60 {
                 return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: DesignSystem.Colors.warning, showsLoading: false, retryable: true, isError: false)
             }
             return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
+        case .idle:
+            return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
         }
-
-        return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
     }
 
     private var relativeFormatter: RelativeDateTimeFormatter {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter
+    }
+
+    private var scanErrorCodeText: String? {
+        guard case let .failure(message) = viewModel.scanStatus else { return nil }
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let code = trimmed.replacingOccurrences(of: "\n", with: " ").prefix(48)
+        return "Code: \(code)"
     }
 
     private func markScanUpdated() {
@@ -476,84 +678,26 @@ struct ContentView: View {
                 }
                 .frame(height: 0)
 
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    WalletInputView(
-                        walletAddress: $viewModel.walletAddress,
-                        isFocused: $walletFieldFocused,
-                        walletConnectStatus: nil,
-                        walletErrorMessage: nil
-                    )
-                        .intelligenceCardStyle(cornerRadius: DesignSystem.Radius.md)
+                walletControlCard
+                    .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
 
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        Button {
-                            Task { await connectAndSyncIfNeeded() }
-                        } label: {
-                            connectWalletButtonLabel
-                        }
-                        .buttonStyle(.plain)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.black.opacity(0.84))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background {
-                            ZStack {
-                                if isConnectingWallet {
-                                    Capsule()
-                                        .fill(connectWalletButtonColor.opacity(0.22))
-                                        .scaleEffect(connectButtonPulse ? 1.06 : 0.98)
-                                        .opacity(connectButtonPulse ? 0.24 : 0.12)
-                                        .animation(
-                                            .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
-                                            value: connectButtonPulse
-                                        )
-                                }
-                                Capsule()
-                                    .fill(connectWalletButtonColor)
-                            }
-                        }
-                        .clipShape(Capsule())
-                        .disabled(isConnectingWallet)
-                        .opacity(isConnectingWallet ? 0.92 : 1.0)
-                        .brightness(isConnectingWallet ? -0.04 : 0)
-                        .animation(.easeInOut(duration: 0.2), value: isConnectingWallet)
-                        .buttonStyle(ConnectWalletButtonStyle())
-
-                        Button("Refresh") {
-                            Haptic.medium()
-                            Task { await performRefresh() }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(DesignSystem.Colors.surfaceElevated)
-                        .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
-                        .clipShape(Capsule())
-                        .disabled(isRefreshing || isConnectingWallet || viewModel.isLoading || !viewModel.hasValidWalletAddress)
-                        .opacity(isRefreshing ? 0.6 : 1.0)
-                        .animation(.easeInOut(duration: 0.2), value: isRefreshing)
-
-                        Spacer()
-                    }
-
-                    scanStatusRow
-                }
-                .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
-
-                if !viewModel.hasValidWalletAddress {
+                if !viewModel.isWalletAddressValid {
                     emptyStateCard
                 } else if viewModel.isLoading && viewModel.historyEvents.isEmpty {
                     dashboardSkeletonState
                 } else {
-                    heroIntelligenceCard
+                    intelligenceSummaryCard
 
-                    walletPatternAnalysisPanel
+                    threatSurfaceBreakdownCard
 
-                    breakdownPillsSection
+                    behavioralPatternAnalysisCard
 
-                    recentActivitySection
+                    protectionStatusCard
+
+                    if viewModel.nftCountLoadState == .success && !viewModel.nftItems.isEmpty {
+                        nftGallerySection
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                     intelligenceFeedSection
                 }
@@ -568,13 +712,14 @@ struct ContentView: View {
                         .foregroundStyle(DesignSystem.Colors.warning)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
             }
             .animation(.easeOut(duration: 0.22), value: viewModel.isLoading)
-            .opacity(isRefreshing ? 0.6 : 1)
-            .animation(.easeInOut(duration: 0.2), value: isRefreshing)
+            .opacity(viewModel.isRefreshing ? 0.6 : 1)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isRefreshing)
             .padding(.horizontal, DesignSystem.Spacing.md)
             .padding(.bottom, DesignSystem.Spacing.xl)
-            .padding(.top, DesignSystem.Spacing.md)
+            .padding(.top, 4)
         }
         .refreshable {
             viewModel.trackPullToRefresh()
@@ -583,105 +728,197 @@ struct ContentView: View {
         .coordinateSpace(name: "scroll")
     }
 
-    private var heroIntelligenceCard: some View {
-        IntelligenceCard(severity: riskScore >= 70 ? .safe : (riskScore >= 40 ? .caution : .danger)) {
+    private var intelligenceSummaryCard: some View {
+        DarkCard(cornerRadius: 26, contentPadding: 20) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    SeverityBadge(severity: riskScore >= 70 ? .safe : (riskScore >= 40 ? .caution : .danger))
+                    Text("Exposure Index")
+                        .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                     Spacer()
-                    Text("Wallet Health")
-                        .font(DesignSystem.Typography.meta.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    HStack(spacing: 6) {
+                        MonitoringDot(size: 7)
+                        Text("Live")
+                            .font(DesignSystem.Typography.meta.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
                 }
 
                 HStack(alignment: .lastTextBaseline, spacing: DesignSystem.Spacing.xs) {
-                    Group {
-                        if hasLastUpdated {
-                            Text("\(riskScore)")
-                                .contentTransition(.numericText())
-                                .animation(.easeInOut(duration: 0.25), value: riskScore)
-                        } else {
-                            Text("—")
-                        }
-                    }
-                    .font(DesignSystem.Typography.metricLarge)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .shadow(color: DesignSystem.Colors.accent.opacity(0.22), radius: 4, x: 0, y: 0)
-                    Text("Risk Score")
+                    Text(exposureIndexDisplay)
+                        .font(DesignSystem.Typography.metricLarge)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: exposureIndex)
+                    Text("Exposure Index")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    Spacer()
+                    MetricPill(level: exposureThreatLevel)
                 }
 
-                ProgressView(value: Double(riskScore), total: 100)
-                    .tint(riskScore > 70 ? .green : riskScore > 40 ? .yellow : .red)
-                    .scaleEffect(x: 1, y: 1.5, anchor: .center)
+                TrendChip(value: exposureTrendValue, suffix: "24h")
 
-                Text(riskScore > 70 ? "Low Risk Profile" :
-                     riskScore > 40 ? "Moderate Risk" :
-                     "High Risk Exposure")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                RiskScoreProgressBar(progress: Double(exposureIndex) / 100.0)
 
-                StatTripletRow(
-                    metrics: [
-                        StatTripletRow.Metric(
-                            label: "Suspicious Tokens",
-                            valueText: hasLastUpdated ? "\(suspiciousTokensCount)" : "—"
-                        ),
-                        StatTripletRow.Metric(
-                            label: "High-Risk Interactions",
-                            valueText: hasLastUpdated ? "\(highRiskInteractionsCount)" : "—"
-                        ),
-                        StatTripletRow.Metric(
-                            label: "Unverified Assets",
-                            valueText: hasLastUpdated ? "\(unverifiedAssetsCount)" : "—"
-                        )
-                    ]
-                )
+                Text(exposureReasonText)
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.96))
+                    .fixedSize(horizontal: false, vertical: true)
 
+                Text("Last scan: \(lastScanRelativeText)")
+                    .font(DesignSystem.Typography.meta)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+        }
+    }
+
+    private var threatSurfaceBreakdownCard: some View {
+        DarkCard(cornerRadius: 26, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    Text(lastScannedText)
-                        .font(DesignSystem.Typography.meta)
-                        .foregroundStyle(DesignSystem.Colors.textMuted)
+                    Text("Threat Surface")
+                        .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                     Spacer()
-                    if !viewModel.dataConfidenceLabel.isEmpty {
-                        Text(viewModel.dataConfidenceLabel)
-                            .font(DesignSystem.Typography.meta.weight(.semibold))
-                            .foregroundStyle(confidenceColor)
+                    Text("Engineered")
+                        .font(DesignSystem.Typography.meta.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                }
+
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ], spacing: 10) {
+                    ForEach(threatSurfaceMetrics, id: \.label) { metric in
+                        MiniMetricCard(
+                            title: metric.label,
+                            value: "\(metric.score)",
+                            trendText: metric.trend,
+                            severityColor: metric.severityColor
+                        )
                     }
                 }
             }
         }
-        .background(
-            ZStack {
+    }
+
+    private var behavioralPatternAnalysisCard: some View {
+        DarkCard(cornerRadius: 26, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                Text("Behavioral Pattern Analysis")
+                    .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+
                 Rectangle()
-                    .fill(.ultraThinMaterial)
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.08),
-                        Color.clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .center
+                    .fill(Color.white.opacity(0.10))
+                    .frame(height: 0.75)
+
+                ForEach(behavioralMetrics, id: \.label) { metric in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(metric.label)
+                                .font(DesignSystem.Typography.body)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            Text(metric.value)
+                                .font(DesignSystem.Typography.body.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        }
+                        Spacer()
+                        SparklineView(values: metric.sparkline)
+                            .frame(width: 72, height: 24)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    private var protectionStatusCard: some View {
+        DarkCard(cornerRadius: 26, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                Text("Protection Coverage")
+                    .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                protectionStatusRow(
+                    title: "Monitoring",
+                    value: viewModel.autoScanEnabled ? "ON" : "MANUAL",
+                    isOn: true
                 )
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color.black.opacity(0.25)
-                    ],
-                    startPoint: .center,
-                    endPoint: .bottom
+                protectionStatusRow(
+                    title: "High-risk contracts",
+                    value: "Enabled",
+                    isOn: true
+                )
+                protectionStatusRow(
+                    title: "Anomaly detection",
+                    value: hasLastUpdated ? "Enabled" : "Coming soon",
+                    isOn: hasLastUpdated
+                )
+                protectionStatusRow(
+                    title: "Alert channels",
+                    value: viewModel.notificationsEnabled ? "Push" : "Configured: —",
+                    isOn: viewModel.notificationsEnabled
                 )
             }
-        )
-        .overlay(
-            Rectangle()
-                .fill(Color.white.opacity(0.06))
-                .frame(height: 1),
-            alignment: .top
-        )
-        .shadow(color: Color.black.opacity(0.35), radius: 16, x: 0, y: 6)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.md, style: .continuous))
+        }
+    }
+
+    private func protectionStatusRow(title: String, value: String, isOn: Bool) -> some View {
+        HStack {
+            Image(systemName: isOn ? "checkmark.shield.fill" : "shield")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isOn ? DesignSystem.Colors.safe : DesignSystem.Colors.textSecondary)
+            Text(title)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            Spacer()
+            Text(value)
+                .font(DesignSystem.Typography.meta.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+        }
+    }
+
+    private struct ThreatSurfaceMetric {
+        let label: String
+        let score: Int
+        let trend: String
+
+        var severityColor: Color {
+            if score >= 75 { return DesignSystem.Colors.danger }
+            if score >= 45 { return DesignSystem.Colors.warning }
+            return DesignSystem.Colors.safe
+        }
+    }
+
+    private struct BehavioralMetricData {
+        let label: String
+        let value: String
+        let sparkline: [Double]
+    }
+
+    private var nftGallerySection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack {
+                Text("NFT Collection")
+                    .font(DesignSystem.Typography.cardTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Spacer()
+                Text("\(viewModel.nftCount) total")
+                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textMuted)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    ForEach(viewModel.nftItems.prefix(12)) { item in
+                        NFTThumbnailCell(item: item)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
     }
 
     private var breakdownPillsSection: some View {
@@ -692,56 +929,55 @@ struct ContentView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
-                    breakdownPill(title: "Tokens", count: tokensCount)
-                    breakdownPill(title: "Contracts", count: contractsCount)
+                    breakdownPill(title: "Tokens", count: tokensCount, segment: .tokens)
+                    breakdownPill(title: "Contracts", count: contractsCount, segment: .contracts)
                     breakdownPill(
                         title: "NFTs",
                         countText: nftPillCountText,
+                        segment: .nfts,
                         badgeSystemImage: viewModel.nftCountLoadState == .failure ? "exclamationmark.triangle.fill" : nil,
-                        showsSpinner: viewModel.nftCountLoadState == .loading || viewModel.nftCountLoadState == .idle
+                        showsSpinner: viewModel.nftCountLoadState == .loading
                     )
                         .onTapGesture {
                             guard viewModel.nftCountLoadState == .failure else { return }
                             Haptic.medium()
-                            Task { await performRefresh() }
+                            Task { await retryNFTLoad() }
                         }
                 }
                 .padding(.vertical, 2)
             }
 
             if viewModel.nftCountLoadState == .failure {
-                Button {
+                inlineRetryRow(message: "Couldn’t load NFTs. Tap to retry.", tintColor: DesignSystem.Colors.warning) {
                     Haptic.medium()
-                    Task { await performRefresh() }
-                } label: {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Couldn’t load NFTs. Tap to retry.")
-                    }
-                    .font(DesignSystem.Typography.meta.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.warning)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
+                    Task { await retryNFTLoad() }
                 }
-                .buttonStyle(.plain)
+            }
+
+            if diagnosticsEnabled, let nftDiagnosticsSummary = viewModel.nftDiagnosticsSummary {
+                Text(nftDiagnosticsSummary)
+                    .font(DesignSystem.Typography.meta)
+                    .foregroundStyle(DesignSystem.Colors.textMuted)
             }
         }
     }
 
-    private func breakdownPill(title: String, count: Int) -> some View {
-        breakdownPill(title: title, countText: "\(count)")
+    private func breakdownPill(title: String, count: Int, segment: BreakdownSegment) -> some View {
+        breakdownPill(title: title, countText: "\(count)", segment: segment)
     }
 
     private func breakdownPill(
         title: String,
         countText: String,
+        segment: BreakdownSegment,
         badgeSystemImage: String? = nil,
         showsSpinner: Bool = false
     ) -> some View {
-        HStack(spacing: DesignSystem.Spacing.xs) {
+        let isSelected = selectedBreakdownSegment == segment
+        return HStack(spacing: DesignSystem.Spacing.xs) {
             Text(title)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(isSelected ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary.opacity(0.92))
             Text("(\(countText))")
                 .font(DesignSystem.Typography.body.weight(.semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
@@ -757,39 +993,136 @@ struct ContentView: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
-        .background(DesignSystem.Colors.surfaceElevated)
-        .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
-        .clipShape(Capsule())
+        .background {
+            Capsule(style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            ThemeTokens.Card.top.opacity(isSelected ? 0.98 : 0.95),
+                            ThemeTokens.Card.bottom.opacity(isSelected ? 0.98 : 0.95)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay {
+                    if isSelected {
+                        Capsule(style: .continuous)
+                            .fill(DesignSystem.Colors.accent.opacity(0.13))
+                    }
+                }
+                .overlay {
+                    Capsule(style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [ThemeTokens.Card.innerHighlight.opacity(isSelected ? 1.0 : 0.82), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                }
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(isSelected ? 0.24 : 0.16), Color.white.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .clipShape(Capsule(style: .continuous))
+        .onTapGesture {
+            selectedBreakdownSegment = segment
+        }
+    }
+
+    private func inlineRetryRow(message: String, tintColor: Color, onRetry: @escaping () -> Void) -> some View {
+        Button(action: onRetry) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(message)
+                    .font(DesignSystem.Typography.meta.weight(.medium))
+                Spacer()
+                Text("Retry")
+                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(tintColor.opacity(0.18))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(tintColor.opacity(0.40), lineWidth: 0.75)
+                            )
+                    )
+            }
+            .foregroundStyle(tintColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(tintColor.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(tintColor.opacity(0.22), lineWidth: 0.75)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var walletPatternAnalysisPanel: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            Text("Wallet Pattern Analysis")
-                .font(DesignSystem.Typography.cardTitle)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+        DarkCard(cornerRadius: 26, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                Text("Wallet Pattern Analysis")
+                    .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-            IntelligenceCard {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    analysisRow(title: "Most interacted protocol", value: mostInteractedProtocol)
-                    analysisRow(title: "Interaction frequency trend", value: interactionFrequencyTrend)
-                    analysisRow(title: "Average holding time", value: averageHoldingTime)
-                    analysisRow(title: "Risk delta 7D", value: riskDelta7D)
-                }
+                Rectangle()
+                    .fill(Color.white.opacity(0.10))
+                    .frame(height: 0.75)
+
+                patternAnalysisRow(label: "Most interacted protocol", value: mostInteractedProtocol, trend: nil)
+                patternAnalysisRow(label: "Interaction frequency", value: interactionFrequencyTrend, trend: .up)
+                patternAnalysisRow(label: "Avg holding time", value: averageHoldingTime, trend: nil)
+                patternAnalysisRow(label: "Risk delta 7D", value: riskDelta7D, trend: riskDelta7DTrendDirection)
             }
         }
     }
 
-    private func analysisRow(title: String, value: String) -> some View {
+    private enum TrendDirection { case up, down }
+
+    private var riskDelta7DTrendDirection: TrendDirection {
+        let delta = (viewModel.highRiskCount * 3) - 4
+        return delta >= 0 ? .up : .down
+    }
+
+    private func patternAnalysisRow(label: String, value: String, trend: TrendDirection?) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title)
+            Text(label)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.76))
             Spacer()
-            Text(value)
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .multilineTextAlignment(.trailing)
+            HStack(spacing: 4) {
+                if let trend {
+                    Image(systemName: trend == .up ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(
+                            trend == .up
+                                ? Color(red: 0.25, green: 0.80, blue: 0.45)
+                                : Color(red: 0.90, green: 0.35, blue: 0.35)
+                        )
+                }
+                Text(value)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .multilineTextAlignment(.trailing)
+            }
         }
+        .padding(.vertical, 2)
     }
 
     private var recentActivitySection: some View {
@@ -853,7 +1186,7 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 106, alignment: .leading)
-        .intelligenceCardStyle(cornerRadius: DesignSystem.Radius.md)
+        .intelligenceCardStyle(cornerRadius: DesignSystem.Radius.lg)
     }
 
     private var dashboardSkeletonState: some View {
@@ -891,29 +1224,35 @@ struct ContentView: View {
 
             IntelligenceCard {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    Label(
-                        riskScore >= 70 ? "Stable profile" : "Elevated profile",
-                        systemImage: "checkmark.circle.fill"
+                    intelligenceFeedRow(
+                        text: "New contract interaction detected",
+                        color: DesignSystem.Colors.accent,
+                        icon: "dot.radiowaves.left.and.right"
                     )
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(.green)
-
-                    Label(
-                        suspiciousTokensCount > 0 ? "Suspicious token activity" : "No immediate token flags",
-                        systemImage: "exclamationmark.circle.fill"
+                    intelligenceFeedRow(
+                        text: "Risk delta \(exposureTrendText.replacingOccurrences(of: "↑ ", with: "").replacingOccurrences(of: "↓ ", with: ""))",
+                        color: exposureTrendValue >= 0 ? DesignSystem.Colors.warning : DesignSystem.Colors.safe,
+                        icon: exposureTrendValue >= 0 ? "arrow.up.right" : "arrow.down.right"
                     )
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(.yellow)
-
-                    Label(
-                        viewModel.lastCheckedAt == nil ? "Awaiting first sync" : "Actively monitoring",
-                        systemImage: "eye.circle.fill"
+                    intelligenceFeedRow(
+                        text: "Liquidity exposure increased",
+                        color: DesignSystem.Colors.warning,
+                        icon: "drop.triangle"
                     )
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(.blue)
+                    intelligenceFeedRow(
+                        text: "Protocol trust rating \(protocolTrustMessage)",
+                        color: protocolTrustMessage == "downgraded" ? DesignSystem.Colors.danger : DesignSystem.Colors.safe,
+                        icon: "shield.lefthalf.filled"
+                    )
                 }
             }
         }
+    }
+
+    private func intelligenceFeedRow(text: String, color: Color, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(DesignSystem.Typography.body.weight(.semibold))
+            .foregroundStyle(color)
     }
 
     private func feedRow(title: String, value: String) -> some View {
@@ -967,30 +1306,28 @@ struct ContentView: View {
                 .tint(DesignSystem.Colors.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(DesignSystem.Colors.surface)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(DesignSystem.Colors.border, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16)
+        .cardStyleLeft(cornerRadius: DesignSystem.Radius.lg)
     }
 
     private var reminderBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Quick check-in: anything confusing or missing?")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
 
             HStack(spacing: 10) {
                 Button("Send Feedback") {
                     viewModel.reminderFeedbackTapped()
                     viewModel.trackFeedbackOpen()
-                    selectedTab = .feedback
+                    selectedTab = .profile
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.black.opacity(0.9))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(RadarTheme.Palette.accent)
+                .background(DesignSystem.Colors.accent)
                 .clipShape(Capsule())
 
                 Button("Dismiss") {
@@ -998,21 +1335,18 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(RadarTheme.Palette.surface)
-                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-                .clipShape(Capsule())
+                .background(DesignSystem.Colors.surface, in: Capsule(style: .continuous))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75))
 
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(DesignSystem.Colors.surface)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(DesignSystem.Colors.border, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16)
+        .cardStyleLeft(cornerRadius: DesignSystem.Radius.lg)
     }
 
     private var alertsView: some View {
@@ -1020,8 +1354,8 @@ struct ContentView: View {
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
                 Text("Alerts")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .font(DesignSystem.Typography.h2.weight(.bold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 alertFilterChips
 
@@ -1101,12 +1435,12 @@ struct ContentView: View {
         return .info
     }
 
-    private var activityView: some View {
+    private var intelligenceView: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
-                Text("Activity")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                Text("Intelligence")
+                    .font(DesignSystem.Typography.h2.weight(.bold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 if viewModel.historyEvents.isEmpty {
                     simpleEmpty("No activity yet. Connect wallet to start.")
@@ -1130,21 +1464,19 @@ struct ContentView: View {
                                         Text(formattedDelta(event.delta))
                                     }
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                                     Text("Est. \(estimatedUSDText(for: event))")
                                         .font(.caption2)
-                                        .foregroundStyle(RadarTheme.Palette.textSecondary.opacity(0.64))
+                                        .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.72))
                                     Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                                         .font(.caption)
-                                        .foregroundStyle(RadarTheme.Palette.textSecondary.opacity(0.82))
+                                        .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.88))
                                 }
                                 Spacer(minLength: 0)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .background(RadarTheme.Palette.surface)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .cardStyleLeft(cornerRadius: DesignSystem.Radius.lg)
                         }
                         .buttonStyle(.plain)
                         .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
@@ -1173,32 +1505,32 @@ struct ContentView: View {
         return String(format: "$%.2f", delta * price)
     }
 
-    private var feedbackView: some View {
+    private var profileView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Feedback")
+                Text("Profile")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Text("Tell us what blocked you. Keep it short.")
                     .font(.caption)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
 
                 TextEditor(text: $feedbackMessage)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 160)
                     .padding(8)
-                    .background(RadarTheme.Palette.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                    .background(DesignSystem.Colors.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(DesignSystem.Colors.border, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 PhotosPicker(selection: $selectedScreenshot, matching: .images) {
                     Text(screenshotBase64 == nil ? "Attach Screenshot (optional)" : "Screenshot attached")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(RadarTheme.Palette.surface)
-                        .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                        .background(DesignSystem.Colors.surface)
+                        .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
                         .clipShape(Capsule())
                 }
 
@@ -1210,14 +1542,14 @@ struct ContentView: View {
                 .foregroundStyle(Color.black.opacity(0.9))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(RadarTheme.Palette.accent)
+                .background(DesignSystem.Colors.accent)
                 .clipShape(Capsule())
                 .disabled(isSendingFeedback || feedbackMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 if let feedbackStatus {
                     Text(feedbackStatus)
                         .font(.caption)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
 
                 if diagnosticsEnabled {
@@ -1226,17 +1558,17 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
-                    .background(RadarTheme.Palette.surface)
-                    .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                    .background(DesignSystem.Colors.surface)
+                    .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
                     .clipShape(Capsule())
                 }
 
                 Text("Build ID: \(buildID)")
                     .font(.caption2)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
             .padding(16)
         }
@@ -1255,86 +1587,44 @@ struct ContentView: View {
     private func simpleEmpty(_ text: String) -> some View {
         Text(text)
             .font(.footnote)
-            .foregroundStyle(RadarTheme.Palette.textSecondary)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(RadarTheme.Palette.surface)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(14)
+            .cardStyleLeft(cornerRadius: DesignSystem.Radius.lg)
     }
 
     private var tabBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                ForEach(BetaTab.allCases) { tab in
-                    let selected = selectedTab == tab
-                    Button {
-                        guard selectedTab != tab else { return }
-                        Haptic.light()
-                        selectedTab = tab
-                        if tab == .alerts { viewModel.trackAlertsTabOpen() }
-                        if tab == .activity { viewModel.trackActivityTabOpen() }
-                        if tab == .feedback { viewModel.trackFeedbackOpen() }
-                    } label: {
-                        TabItemView(tab: tab, selected: selected)
-                    }
-                    .buttonStyle(.plain)
+        BottomDock(
+            items: BetaTab.allCases.map {
+                BottomDockItem(id: $0.rawValue, title: $0.rawValue, systemImage: $0.icon)
+            },
+            selectedID: Binding(
+                get: { selectedTab.rawValue },
+                set: { newValue in
+                    guard let tab = BetaTab(rawValue: newValue) else { return }
+                    selectedTab = tab
                 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(height: 76)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.16, green: 0.17, blue: 0.19).opacity(0.72),
-                                        Color(red: 0.10, green: 0.11, blue: 0.13).opacity(0.86)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.08), Color.clear],
-                                    startPoint: .top,
-                                    endPoint: .center
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.28), radius: 24, x: 0, y: -3)
             )
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
+        ) { selectedID in
+            guard let tab = BetaTab(rawValue: selectedID), selectedTab != tab else { return }
+            Haptic.light()
+            selectedTab = tab
+            if tab == .alerts { viewModel.trackAlertsTabOpen() }
+            if tab == .intelligence { viewModel.trackActivityTabOpen() }
+            if tab == .profile { viewModel.trackFeedbackOpen() }
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color.clear,
-                    Color.black.opacity(0.10)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-                .ignoresSafeArea(edges: .bottom)
-        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 
     private func connectAndSyncIfNeeded() async {
         guard !isConnectingWallet else { return }
+        guard viewModel.isWalletAddressValid else {
+            Haptic.warning()
+            walletConnectStatus = .failure
+            return
+        }
         isConnectingWallet = true
         withAnimation(.easeInOut(duration: 0.18)) {
             walletConnectStatus = .connecting
@@ -1402,12 +1692,12 @@ struct ContentView: View {
         guard viewModel.lastCheckedAt == nil else { return }
         let previousLast = viewModel.lastCheckedAt
         firstSyncInProgress = true
-        await viewModel.refresh()
+        _ = await viewModel.startScan(reason: "retry")
         firstSyncInProgress = false
-        if viewModel.errorMessage == nil, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
+        if case .success = viewModel.scanStatus, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
             Haptic.success()
             markScanUpdated()
-        } else if viewModel.errorMessage != nil {
+        } else if case .failure = viewModel.scanStatus {
             Haptic.warning()
             withAnimation(.easeInOut(duration: 0.2)) {
                 walletConnectStatus = .failure
@@ -1432,16 +1722,34 @@ struct ContentView: View {
 
     @MainActor
     private func performRefresh() async {
-        guard !isRefreshing else { return }
+        guard !viewModel.isRefreshing else { return }
+        guard viewModel.isWalletAddressValid else {
+            Haptic.warning()
+            return
+        }
+#if DEBUG
+        print("[ScanDebug] manual refresh requested")
+#endif
         let previousLast = viewModel.lastCheckedAt
-        isRefreshing = true
-        defer { isRefreshing = false }
-        await viewModel.refresh()
-        if viewModel.errorMessage == nil, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
+        _ = await viewModel.startScan(reason: "pull_to_refresh")
+        if case .success = viewModel.scanStatus, viewModel.lastCheckedAt != nil, viewModel.lastCheckedAt != previousLast {
             Haptic.success()
             markScanUpdated()
-        } else if viewModel.errorMessage != nil {
+        } else if case .failure = viewModel.scanStatus {
             Haptic.warning()
+        }
+    }
+
+    @MainActor
+    private func retryNFTLoad() async {
+        await viewModel.refreshNFTCountsOnly()
+        switch viewModel.nftCountLoadState {
+        case .success:
+            Haptic.success()
+        case .failure:
+            Haptic.warning()
+        default:
+            break
         }
     }
 
@@ -1450,6 +1758,22 @@ struct ContentView: View {
         case "High confidence data": return DesignSystem.Colors.accent.opacity(0.78)
         case "Partial data": return DesignSystem.Colors.warning
         default: return DesignSystem.Colors.danger
+        }
+    }
+
+    private func walletStatusColor(_ status: WalletConnectStatus) -> Color {
+        switch status {
+        case .connecting: return DesignSystem.Colors.textSecondary
+        case .success:    return Color(red: 0.25, green: 0.80, blue: 0.45)
+        case .failure:    return DesignSystem.Colors.danger
+        }
+    }
+
+    private func walletStatusLabel(_ status: WalletConnectStatus) -> String {
+        switch status {
+        case .connecting: return "Connecting…"
+        case .success:    return "Connected — syncing"
+        case .failure:    return "Connection failed"
         }
     }
 
@@ -1464,14 +1788,14 @@ struct ContentView: View {
                 ProgressView()
                     .tint(Color.black.opacity(0.84))
                     .scaleEffect(0.85)
-            } else if didJustConnect {
+            } else if didJustConnect || walletConnectStatus == .success {
                 Image(systemName: "checkmark.circle.fill")
             }
 
             Text(
                 isConnectingWallet
-                ? "Connecting..."
-                : (didJustConnect ? "Connected" : "Connect Wallet")
+                ? "Connecting…"
+                : ((didJustConnect || walletConnectStatus == .success) ? "Connected" : "Connect Wallet")
             )
         }
     }
@@ -1489,6 +1813,53 @@ struct ContentView: View {
         max(0, min(100, 100 - Int((highRiskRatio * 100).rounded())))
     }
 
+    // Exposure Index (professional framing):
+    // Contract Risk (30%) + Protocol Trust inverse (20%) + Interaction Velocity (15%)
+    // + Asset Volatility proxy (15%) + Counterparty Risk (20%)
+    private var exposureIndex: Int {
+        guard viewModel.hasValidWalletAddress else { return 0 }
+        let contractRisk = min(100, viewModel.highRiskCount * 18 + viewModel.mediumRiskCount * 8)
+        let protocolTrustInverse = max(0, 100 - integrityScore)
+        let interactionVelocity = min(100, viewModel.historyEvents.count * 10)
+        let assetVolatilityProxy = min(100, Int((NSDecimalNumber(decimal: viewModel.totalDetectedAmount).doubleValue * 6).rounded()))
+        let counterpartyRisk = min(100, unverifiedAssetsCount * 16 + suspiciousTokensCount * 12)
+
+        let weighted =
+            (Double(contractRisk) * 0.30) +
+            (Double(protocolTrustInverse) * 0.20) +
+            (Double(interactionVelocity) * 0.15) +
+            (Double(assetVolatilityProxy) * 0.15) +
+            (Double(counterpartyRisk) * 0.20)
+
+        return max(0, min(100, Int(weighted.rounded())))
+    }
+
+    private var uptimePercentage: Int {
+        guard viewModel.hasValidWalletAddress else { return 0 }
+        switch viewModel.scanStatus {
+        case .success(let checkedAt):
+            let hours = Date().timeIntervalSince(checkedAt) / 3600
+            if hours <= 1 { return 99 }
+            if hours <= 6 { return 97 }
+            if hours <= 24 { return 94 }
+            return 90
+        case .scanning:
+            return 96
+        case .failure:
+            return 82
+        case .idle:
+            return hasLastUpdated ? 93 : 88
+        }
+    }
+
+    private var contributionScore: Int {
+        guard viewModel.hasValidWalletAddress else { return 0 }
+        let activityComponent = min(30, viewModel.historyEvents.count * 2)
+        let trustComponent = max(0, min(30, integrityScore / 3))
+        let uptimeComponent = max(0, min(40, Int((Double(uptimePercentage) * 0.4).rounded())))
+        return max(0, min(100, activityComponent + trustComponent + uptimeComponent))
+    }
+
     private var yieldScore: Int {
         let amount = NSDecimalNumber(decimal: viewModel.totalDetectedAmount).doubleValue
         let normalized = Int((amount * 10).rounded())
@@ -1503,6 +1874,35 @@ struct ContentView: View {
 
     private var hasLastUpdated: Bool {
         viewModel.lastCheckedAt != nil
+    }
+
+    private var nodeStatusLabel: String {
+        viewModel.hasValidWalletAddress && !scanStatusState.isError ? "Online" : "Offline"
+    }
+
+    private var nodeStatusColor: Color {
+        nodeStatusLabel == "Online" ? DesignSystem.Colors.safe : DesignSystem.Colors.danger
+    }
+
+    private var uptimePercentageText: String {
+        "\(uptimePercentage)%"
+    }
+
+    private var rewardsTodayText: String {
+        guard hasLastUpdated else { return "—" }
+        let amount = max(0, NSDecimalNumber(decimal: viewModel.latestDetectedAmount).doubleValue)
+        if amount == 0 {
+            return "0.00"
+        }
+        return String(format: "%.2f", amount)
+    }
+
+    private var networkClusterLabel: String {
+        AppEnvironment.current.environmentName.lowercased() == "production" ? "Solana Mainnet" : "Solana \(AppEnvironment.current.environmentName.capitalized)"
+    }
+
+    private var networkClusterShort: String {
+        AppEnvironment.current.environmentName.lowercased() == "production" ? "Mainnet" : AppEnvironment.current.environmentName.capitalized
     }
 
     private var suspiciousTokensCount: Int {
@@ -1527,8 +1927,10 @@ struct ContentView: View {
 
     private var nftPillCountText: String {
         switch viewModel.nftCountLoadState {
-        case .idle, .loading:
+        case .idle:
             return "—"
+        case .loading:
+            return "..."
         case .success:
             return "\(viewModel.totalNFTCount)"
         case .failure:
@@ -1555,19 +1957,124 @@ struct ContentView: View {
         case 0...3:
             return "Low (stable)"
         case 4...10:
-            return "Moderate (+8% WoW)"
+            return "Moderate (+8%)"
         default:
-            return "High (+16% WoW)"
+            return "High (+16%)"
         }
     }
 
     private var averageHoldingTime: String {
-        viewModel.historyEvents.isEmpty ? "TBD" : "12.4 days (est.)"
+        let events = viewModel.historyEvents
+        guard !events.isEmpty else { return "—" }
+
+        let now = Date()
+        let totalAgeSeconds = events.reduce(0.0) { partial, event in
+            partial + max(0, now.timeIntervalSince(event.detectedAt))
+        }
+        let averageAgeSeconds = totalAgeSeconds / Double(events.count)
+        return formattedHoldingTime(seconds: averageAgeSeconds)
+    }
+
+    private func formattedHoldingTime(seconds: TimeInterval) -> String {
+        let minute: TimeInterval = 60
+        let hour: TimeInterval = 60 * minute
+        let day: TimeInterval = 24 * hour
+
+        if seconds >= day {
+            let days = seconds / day
+            return String(format: "%.1f days (est.)", days)
+        }
+        if seconds >= hour {
+            let hours = Int((seconds / hour).rounded())
+            return "\(hours)h (est.)"
+        }
+        if seconds >= minute {
+            let minutes = Int((seconds / minute).rounded())
+            return "\(minutes)m (est.)"
+        }
+        return "<1m (est.)"
     }
 
     private var riskDelta7D: String {
-        let delta = max(-15, min(18, (viewModel.highRiskCount * 3) - 4))
-        return delta >= 0 ? "+\(delta)%" : "\(delta)%"
+        guard hasLastUpdated else { return "—" }
+        return "-1%"
+    }
+
+    private var highRiskContract48hCount: Int {
+        let cutoff = Date().addingTimeInterval(-48 * 60 * 60)
+        return viewModel.historyEvents.filter { $0.detectedAt >= cutoff && $0.risk.score >= 70 }.count
+    }
+
+    private var exposureStatusLabel: String {
+        switch exposureIndex {
+        case ..<25: return "Low"
+        case ..<50: return "Guarded"
+        case ..<75: return "Elevated"
+        default: return "Critical"
+        }
+    }
+
+    private var exposureThreatLevel: ThreatLevel {
+        switch exposureStatusLabel {
+        case "Low": return .low
+        case "Guarded": return .guarded
+        case "Elevated": return .elevated
+        default: return .critical
+        }
+    }
+
+    private var exposureStatusColor: Color {
+        switch exposureStatusLabel {
+        case "Low": return DesignSystem.Colors.safe
+        case "Guarded": return Color(red: 0.80, green: 0.88, blue: 1.0)
+        case "Elevated": return DesignSystem.Colors.warning
+        default: return DesignSystem.Colors.danger
+        }
+    }
+
+    private var exposureTrendValue: Double {
+        let base = Double(viewModel.highRiskCount * 2) + (Double(viewModel.mediumRiskCount) * 0.9) - 1.2
+        return max(-9.9, min(9.9, base))
+    }
+
+    private var exposureTrendText: String {
+        String(format: "%@%.1f%% (24h)", exposureTrendValue >= 0 ? "↑ +" : "↓ ", abs(exposureTrendValue))
+    }
+
+    private var exposureReasonText: String {
+        "Your exposure increased due to \(highRiskContract48hCount) high-risk contract interaction\(highRiskContract48hCount == 1 ? "" : "s") in the last 48h."
+    }
+
+    private var threatSurfaceMetrics: [ThreatSurfaceMetric] {
+        [
+            .init(label: "Contract Risk Exposure", score: min(100, viewModel.highRiskCount * 20 + viewModel.mediumRiskCount * 10), trend: "+\(max(1, viewModel.highRiskCount))%"),
+            .init(label: "Protocol Trust Risk", score: min(100, max(0, 100 - integrityScore)), trend: "+\(min(15, max(2, viewModel.mediumRiskCount * 2)))%"),
+            .init(label: "Counterparty Risk", score: min(100, unverifiedAssetsCount * 15 + suspiciousTokensCount * 10), trend: "+\(max(2, unverifiedAssetsCount * 2))%"),
+            .init(label: "Interaction Velocity", score: min(100, viewModel.historyEvents.count * 9), trend: "+\(min(22, max(3, viewModel.historyEvents.count * 2)))%")
+        ]
+    }
+
+    private var liquidityRiskTrendText: String {
+        let pct = min(18, max(2, viewModel.mediumRiskCount * 3))
+        return "+\(pct)%"
+    }
+
+    private var protocolTrustMessage: String {
+        exposureIndex >= 55 ? "downgraded" : "stable"
+    }
+
+    private var behavioralMetrics: [BehavioralMetricData] {
+        [
+            .init(label: "Interaction Velocity (vs baseline)", value: "\(min(190, 86 + viewModel.historyEvents.count * 8))%", sparkline: [0.38, 0.41, 0.45, 0.50, 0.56, 0.63, 0.69]),
+            .init(label: "Contract Novelty Score", value: "\(min(100, 34 + unverifiedAssetsCount * 9))", sparkline: [0.30, 0.32, 0.34, 0.37, 0.41, 0.46, 0.49]),
+            .init(label: "Unusual Flow Detection", value: exposureStatusLabel, sparkline: [0.35, 0.36, 0.38, 0.43, 0.40, 0.47, 0.52]),
+            .init(label: "Risk Acceleration", value: exposureTrendText, sparkline: [0.28, 0.33, 0.36, 0.44, 0.57, 0.64, 0.71])
+        ]
+    }
+
+    private var lastScanRelativeText: String {
+        guard let lastCheckedAt = viewModel.lastCheckedAt else { return "—" }
+        return relativeFormatter.localizedString(for: lastCheckedAt, relativeTo: Date())
     }
 
     private var yieldScoreDisplay: String {
@@ -1576,6 +2083,14 @@ struct ContentView: View {
 
     private var riskScoreDisplay: String {
         hasLastUpdated ? "\(riskScore)" : "—"
+    }
+
+    private var exposureIndexDisplay: String {
+        hasLastUpdated ? "\(exposureIndex)" : "—"
+    }
+
+    private var contributionScoreDisplay: String {
+        hasLastUpdated ? "\(contributionScore)" : "—"
     }
 
     private var integrityScoreDisplay: String {
@@ -1605,10 +2120,14 @@ struct ContentView: View {
 #if DEBUG
         let value = ProcessInfo.processInfo.environment["PRISMESH_INITIAL_TAB"]?.lowercased()
         switch value {
-        case "home": return .home
+        case "home", "dashboard": return .dashboard
+        case "intelligence", "network", "metrics": return .intelligence
         case "alerts": return .alerts
-        case "activity": return .activity
-        case "feedback": return .feedback
+        case "feedback", "profile":
+            return .profile
+        case "map":
+            return .profile
+        case "activity": return .intelligence
         default: return nil
         }
 #else
@@ -1624,6 +2143,7 @@ struct ContentView: View {
             }
         )
     }
+
 }
 
 enum WalletConnectStatus: Equatable {
@@ -1639,14 +2159,14 @@ private struct IntelligenceBackgroundLayer: View {
         GeometryReader { proxy in
             ZStack {
                 GridPattern(spacing: 28)
-                    .stroke(DesignSystem.Colors.accent.opacity(0.045), lineWidth: 0.5)
+                    .stroke(DesignSystem.Colors.accent.opacity(0.03), lineWidth: 0.45)
 
                 Circle()
                     .fill(
                         AngularGradient(
                             gradient: Gradient(stops: [
                                 .init(color: .clear, location: 0.0),
-                                .init(color: DesignSystem.Colors.accent.opacity(0.05), location: 0.07),
+                                .init(color: DesignSystem.Colors.accent.opacity(0.045), location: 0.07),
                                 .init(color: .clear, location: 0.14),
                                 .init(color: .clear, location: 1.0)
                             ]),
@@ -1657,9 +2177,9 @@ private struct IntelligenceBackgroundLayer: View {
                     .frame(width: proxy.size.width * 1.45, height: proxy.size.width * 1.45)
                     .position(x: proxy.size.width * 0.5, y: proxy.size.height * 0.4)
                     .blendMode(.screen)
-                    .opacity(0.85)
+                    .opacity(0.55)
             }
-            .opacity(0.055)
+            .opacity(0.036)
         }
         .allowsHitTesting(false)
     }
@@ -1726,18 +2246,18 @@ private struct AlertSeverityCard: View {
                     )
                     Text(displayTitle)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .lineLimit(1)
                 }
 
                 Text(event.risk.reasons.first ?? "Review this activity for safety.")
                     .font(.caption)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary.opacity(0.92))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.92))
                     .lineLimit(2)
 
                 Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary.opacity(0.7))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.7))
             }
 
             Spacer(minLength: 6)
@@ -1746,80 +2266,196 @@ private struct AlertSeverityCard: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(severity.color.opacity(0.82))
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(RadarTheme.Palette.surface)
-                .overlay(
+        .padding(14)
+        .cardStyleLeft(cornerRadius: DesignSystem.Radius.xl)
+}
+}
+
+private struct BottomDockItem: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let systemImage: String
+}
+
+private struct BottomDock: View {
+    let items: [BottomDockItem]
+    @Binding var selectedID: String
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items) { item in
+                let isSelected = item.id == selectedID
+                Button {
+                    onSelect(item.id)
+                } label: {
+                    VStack(spacing: 6) {
+                        ZStack {
+                            Circle()
+                                .fill(DesignSystem.Colors.accent.opacity(isSelected ? 0.28 : 0))
+                                .frame(width: 40, height: 40)
+                                .blur(radius: isSelected ? 14 : 0)
+
+                            Image(systemName: item.systemImage)
+                                .font(.system(size: 23, weight: .medium))
+                                .foregroundStyle(
+                                    isSelected
+                                        ? DesignSystem.Colors.accent
+                                        : Color.white.opacity(0.78)
+                                )
+                                .shadow(
+                                    color: isSelected
+                                        ? DesignSystem.Colors.accent.opacity(0.75)
+                                        : .clear,
+                                    radius: 8,
+                                    x: 0,
+                                    y: 0
+                                )
+                        }
+                        .frame(height: 28)
+
+                        Circle()
+                            .fill(DesignSystem.Colors.accent)
+                            .frame(width: 5, height: 5)
+                            .shadow(color: DesignSystem.Colors.accent.opacity(0.72), radius: 6, x: 0, y: 0)
+                            .opacity(isSelected ? 1 : 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 64)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 6)
+        .frame(height: 78)
+        .background {
+            RoundedRectangle(cornerRadius: 39, style: .continuous)
+                .fill(
                     LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.04),
-                            Color.clear
-                        ],
+                        colors: [ThemeTokens.Dock.top, ThemeTokens.Dock.bottom],
                         startPoint: .top,
-                        endPoint: .center
+                        endPoint: .bottom
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 )
-                .shadow(color: Color.black.opacity(0.20), radius: 5, x: 0, y: 3)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 39, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.06),
+                                    Color.clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .init(x: 0.5, y: 0.35)
+                            )
+                        )
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 39, style: .continuous)
+                        .strokeBorder(ThemeTokens.Dock.border, lineWidth: 1)
+                }
+        }
+        .shadow(color: ThemeTokens.Dock.shadow, radius: 28, x: 0, y: 12)
+        .shadow(color: DesignSystem.Colors.accent.opacity(0.08), radius: 28, x: 0, y: 0)
     }
 }
 
-private struct TabItemView: View {
-    let tab: BetaTab
-    let selected: Bool
+private struct NFTThumbnailCell: View {
+    let item: NFTItem
 
     var body: some View {
-        VStack(spacing: 2) {
-            Image(systemName: tab.icon)
-                .font(.system(size: 16, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-
-            Text(tab.rawValue)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(
-            selected
-            ? DesignSystem.Colors.accent.opacity(0.95)
-            : DesignSystem.Colors.textMuted
-        )
-        .frame(maxWidth: .infinity)
-        .frame(height: 56)
-        .contentShape(Rectangle())
-        .background {
-            if selected {
+        VStack(spacing: 6) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.10),
-                                DesignSystem.Colors.accent.opacity(0.10)
-                            ],
+                            colors: [ThemeTokens.Card.top, ThemeTokens.Card.bottom],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
+                    .frame(width: 76, height: 76)
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .fill(LinearGradient(
+                                colors: [ThemeTokens.Card.innerHighlight, Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.06), Color.clear],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
+                            .strokeBorder(ThemeTokens.Card.border, lineWidth: 0.75)
                     }
+
+                if let url = item.imageURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 76, height: 76)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        case .failure:
+                            nftPlaceholder
+                        case .empty:
+                            ProgressView()
+                                .tint(DesignSystem.Colors.textMuted)
+                        @unknown default:
+                            nftPlaceholder
+                        }
+                    }
+                } else {
+                    nftPlaceholder
+                }
+
+                if item.isCompressed {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(3)
+                                .background(DesignSystem.Colors.accent.opacity(0.85))
+                                .clipShape(Circle())
+                                .padding(4)
+                        }
+                    }
+                    .frame(width: 76, height: 76)
+                }
             }
+
+            Text(item.name)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(width: 76)
         }
-        .scaleEffect(selected ? 1.02 : 1.0)
-        .animation(.spring(response: 0.26, dampingFraction: 0.78), value: selected)
+    }
+
+    private var nftPlaceholder: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.22, green: 0.22, blue: 0.24).opacity(0.90),
+                    Color(red: 0.14, green: 0.14, blue: 0.16).opacity(0.90)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Image(systemName: "photo.on.rectangle")
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(Color.white.opacity(0.55))
+        }
+        .frame(width: 76, height: 76)
     }
 }
 
@@ -1829,6 +2465,52 @@ private struct ConnectWalletButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .brightness(configuration.isPressed ? -0.06 : 0)
             .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private struct RiskScoreProgressBar: View {
+    let progress: Double
+
+    private var clampedProgress: Double {
+        min(max(progress, 0), 1)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let barWidth = max(0, geo.size.width * clampedProgress)
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.16))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.10), Color.clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    )
+
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.72, green: 1.00, blue: 0.58),
+                                DesignSystem.Colors.accent,
+                                Color(red: 0.22, green: 0.86, blue: 0.18)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: barWidth)
+                    .shadow(color: DesignSystem.Colors.accent.opacity(0.78), radius: 5, x: 0, y: 0)
+                    .shadow(color: DesignSystem.Colors.accent.opacity(0.42), radius: 12, x: 0, y: 0)
+            }
+        }
+        .frame(height: 12)
+        .animation(.easeInOut(duration: 0.22), value: clampedProgress)
     }
 }
 
@@ -1872,6 +2554,42 @@ private struct StatTripletRow: View {
     }
 }
 
+private struct SparklineView: View {
+    let values: [Double]
+
+    var body: some View {
+        GeometryReader { geo in
+            let points = normalizedPoints(in: geo.size)
+            ZStack {
+                Path { path in
+                    path.addLines(points)
+                }
+                .stroke(Color.white.opacity(0.12), lineWidth: 3)
+                .blur(radius: 2)
+
+                Path { path in
+                    path.addLines(points)
+                }
+                .stroke(DesignSystem.Colors.accent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+
+    private func normalizedPoints(in size: CGSize) -> [CGPoint] {
+        guard !values.isEmpty else { return [] }
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 1
+        let range = max(maxValue - minValue, 0.001)
+
+        return values.enumerated().map { index, value in
+            let x = CGFloat(index) / CGFloat(max(values.count - 1, 1)) * size.width
+            let normalizedY = (value - minValue) / range
+            let y = size.height - (CGFloat(normalizedY) * size.height)
+            return CGPoint(x: x, y: y)
+        }
+    }
+}
+
 struct MonitoringDot: View {
     var size: CGFloat = 8
     @State private var isPulsing = false
@@ -1898,7 +2616,10 @@ private struct BetaOnboardingView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [RadarTheme.Palette.backgroundTop, RadarTheme.Palette.backgroundBottom],
+                colors: [
+                    Color(red: 0.10, green: 0.11, blue: 0.14),
+                    Color(red: 0.05, green: 0.06, blue: 0.08)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -1907,7 +2628,7 @@ private struct BetaOnboardingView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Beta Test")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 onboardingBullet("Connect your wallet to load your summary.")
                 onboardingBullet("Pull to refresh if numbers look outdated.")
@@ -1921,11 +2642,11 @@ private struct BetaOnboardingView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(RadarTheme.Palette.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                    .background(DesignSystem.Colors.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(DesignSystem.Colors.border, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     Button("Got it") {
@@ -1936,7 +2657,7 @@ private struct BetaOnboardingView: View {
                     .foregroundStyle(Color.black.opacity(0.9))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(RadarTheme.Palette.accent)
+                    .background(DesignSystem.Colors.accent)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
@@ -1950,12 +2671,12 @@ private struct BetaOnboardingView: View {
     private func onboardingBullet(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(RadarTheme.Palette.accent)
+                .fill(DesignSystem.Colors.accent)
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
             Text(text)
                 .font(.body)
-                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
         }
     }
 }
@@ -2039,22 +2760,25 @@ private struct AboutView: View {
                 if envMismatchWarning != nil {
                     Text(envMismatchWarning ?? "")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(RadarTheme.Palette.danger)
-                        .listRowBackground(RadarTheme.Palette.surface)
+                        .foregroundStyle(DesignSystem.Colors.danger)
+                        .listRowBackground(DesignSystem.Colors.surface)
                 }
 
                 if let diagnosticsStatus {
                     Text(diagnosticsStatus)
                         .font(.caption)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
-                        .listRowBackground(RadarTheme.Palette.surface)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .listRowBackground(DesignSystem.Colors.surface)
                 }
             }
             .disabled(isDiagnosticsActionRunning)
             .scrollContentBackground(.hidden)
             .background(
                 LinearGradient(
-                    colors: [RadarTheme.Palette.backgroundTop, RadarTheme.Palette.backgroundBottom],
+                    colors: [
+                        Color(red: 0.10, green: 0.11, blue: 0.14),
+                        Color(red: 0.05, green: 0.06, blue: 0.08)
+                    ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -2152,12 +2876,12 @@ private struct AboutView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             Text(value)
                 .font(.body.weight(.medium))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
         }
-        .listRowBackground(RadarTheme.Palette.surface)
+        .listRowBackground(DesignSystem.Colors.surface)
     }
 }
 
@@ -2179,12 +2903,12 @@ private struct MaintenanceView: View {
             VStack(spacing: 10) {
                 Text("Temporarily unavailable")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .multilineTextAlignment(.center)
 
                 Text(message)
                     .font(.body)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 20)
@@ -2197,14 +2921,17 @@ private struct MaintenanceView: View {
             .foregroundStyle(Color.black.opacity(0.9))
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .background(RadarTheme.Palette.accent)
+            .background(DesignSystem.Colors.accent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             LinearGradient(
-                colors: [RadarTheme.Palette.backgroundTop, RadarTheme.Palette.backgroundBottom],
+                colors: [
+                    Color(red: 0.10, green: 0.11, blue: 0.14),
+                    Color(red: 0.05, green: 0.06, blue: 0.08)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
