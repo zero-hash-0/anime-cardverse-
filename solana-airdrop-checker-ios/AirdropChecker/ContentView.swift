@@ -35,12 +35,9 @@ private enum AlertSeverity: String {
 
     var color: Color {
         switch self {
-        case .critical:
-            return Color(red: 0.95, green: 0.34, blue: 0.34)
-        case .warning:
-            return Color(red: 0.93, green: 0.67, blue: 0.24)
-        case .info:
-            return Color(red: 0.34, green: 0.67, blue: 0.94)
+        case .critical: return ThemeTokens.Accent.critical
+        case .warning:  return ThemeTokens.Accent.elevated
+        case .info:     return ThemeTokens.Accent.intelligenceBlue
         }
     }
 }
@@ -68,6 +65,10 @@ private enum BreakdownSegment: String, CaseIterable {
     case nfts = "NFTs"
 }
 
+private enum DashboardRoute: Hashable {
+    case exposureDetail
+}
+
 struct ContentView: View {
     @StateObject private var viewModel: DashboardViewModel
     @FocusState private var walletFieldFocused: Bool
@@ -92,6 +93,7 @@ struct ContentView: View {
     @State private var scrollY: CGFloat = 0
     @State private var selectedBreakdownSegment: BreakdownSegment = .tokens
     @State private var didRunInitialLoad = false
+    @State private var navigationPath = NavigationPath()
     @AppStorage("betaOnboardingSeen") private var betaOnboardingSeen = false
 
     init(viewModel: DashboardViewModel) {
@@ -99,124 +101,119 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                header
-
-                ZStack {
-                    switch selectedTab {
-                    case .dashboard:
-                        homeView
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
-
-                    case .intelligence:
-                        intelligenceView
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
-
-                    case .alerts:
-                        alertsView
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
-
-                    case .profile:
-                        profileView
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
-                    }
-                }
-                .animation(.easeInOut(duration: 0.22), value: selectedTab)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .blur(radius: viewModel.isMaintenanceMode ? 2 : 0)
-            .disabled(viewModel.isMaintenanceMode)
-
-            if viewModel.isMaintenanceMode {
-                MaintenanceView(
-                    message: viewModel.maintenanceMessage,
-                    onRetry: {
-                        Task { await viewModel.retryMaintenanceCheck() }
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(2)
-            }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            tabBar
-        }
-        .background {
+        NavigationStack(path: $navigationPath) {
             ZStack {
-                ThemeTokens.Background.base
-                    .ignoresSafeArea()
-                LinearGradient(
-                    colors: [
-                        ThemeTokens.Background.top.opacity(0.58),
-                        ThemeTokens.Background.base.opacity(0.42),
-                        Color.clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .init(x: 0.5, y: 0.56)
-                )
-                .ignoresSafeArea()
-                RadialGradient(
-                    colors: [
-                        ThemeTokens.Accent.green.opacity(0.07),
-                        Color.clear
-                    ],
-                    center: .init(x: 0.5, y: 0.28),
-                    startRadius: 20,
-                    endRadius: 420
-                )
-                .ignoresSafeArea()
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        ThemeTokens.Background.vignette
-                    ],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                VStack(spacing: 0) {
+                    header
 
-                IntelligenceBackgroundLayer(sweepRotation: radarSweepRotation)
+                    ZStack {
+                        switch selectedTab {
+                        case .dashboard:
+                            homeView
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    )
+                                )
+
+                        case .intelligence:
+                            intelligenceView
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    )
+                                )
+
+                        case .alerts:
+                            alertsView
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    )
+                                )
+
+                        case .profile:
+                            profileView
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    )
+                                )
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.22), value: selectedTab)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .opacity(viewModel.isMaintenanceMode ? 0.6 : 1)
+                .disabled(viewModel.isMaintenanceMode)
+
+                if viewModel.isMaintenanceMode {
+                    MaintenanceView(
+                        message: viewModel.maintenanceMessage,
+                        onRetry: {
+                            Task { await viewModel.retryMaintenanceCheck() }
+                        }
+                    )
+                    .transition(.opacity)
+                    .zIndex(2)
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                tabBar
+            }
+            .background {
+                ZStack {
+                    ThemeTokens.Background.gradient
+                        .ignoresSafeArea()
+                    LinearGradient(
+                        colors: [
+                            ThemeTokens.Background.top.opacity(0.44),
+                            ThemeTokens.Background.base.opacity(0.18),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .init(x: 0.5, y: 0.46)
+                    )
                     .ignoresSafeArea()
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            ThemeTokens.Background.vignette.opacity(0.9)
+                        ],
+                        startPoint: .init(x: 0.5, y: 0.65),
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                }
             }
-        }
-        .task {
-            guard !didRunInitialLoad else { return }
-            didRunInitialLoad = true
-            await viewModel.onAppear()
-            guard viewModel.hasValidWalletAddress, !viewModel.isMaintenanceMode else { return }
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            _ = await viewModel.startScan(reason: "post_paint")
-        }
-        .onAppear {
-            if !didApplyLaunchTab, let launchTab = launchSelectedTab {
-                selectedTab = launchTab
-                didApplyLaunchTab = true
+            .task {
+                guard !didRunInitialLoad else { return }
+                didRunInitialLoad = true
+                await viewModel.onAppear()
+                guard viewModel.hasValidWalletAddress, !viewModel.isMaintenanceMode else { return }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                _ = await viewModel.startScan(reason: "post_paint")
             }
-            guard !hasAnimatedRadarSweep else { return }
-            hasAnimatedRadarSweep = true
-            withAnimation(.easeInOut(duration: 1.6)) {
-                radarSweepRotation = 24
+            .onAppear {
+                if !didApplyLaunchTab, let launchTab = launchSelectedTab {
+                    selectedTab = launchTab
+                    didApplyLaunchTab = true
+                }
+                guard !hasAnimatedRadarSweep else { return }
+                hasAnimatedRadarSweep = true
+                withAnimation(.easeInOut(duration: 1.6)) {
+                    radarSweepRotation = 24
+                }
+            }
+            .navigationDestination(for: DashboardRoute.self) { route in
+                switch route {
+                case .exposureDetail:
+                    ExposureDetailView(viewModel: viewModel, currentExposureIndex: exposureIndex)
+                }
             }
         }
         .onDisappear {
@@ -286,25 +283,30 @@ struct ContentView: View {
     private var header: some View {
         let effectiveScrollY = selectedTab == .dashboard ? scrollY : 0
         let t = min(1, max(0, (-effectiveScrollY) / 120))
-        let materialOpacity = 0.40 + (0.28 * t)
-        let overlayDark = 0.20 + (0.24 * t)
 
         return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xs) {
-                Text("Wallet Yield & Risk Intelligence")
+                Text("PrismMesh")
                     .font(.system(size: 21, weight: .semibold, design: .default))
                     .tracking(0.25)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .minimumScaleFactor(0.74)
-                    .foregroundStyle(Color.white.opacity(0.98))
+                    .foregroundStyle(ThemeTokens.Text.primary)
                 Spacer()
-                MonitoringDot(size: 6)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(headerIndicatorColor)
+                        .frame(width: 6, height: 6)
+                    Text(headerIndicatorLabel)
+                        .font(DesignSystem.Typography.meta.weight(.semibold))
+                        .foregroundStyle(ThemeTokens.Text.secondary)
+                }
             }
 
-            Text("Monitoring")
+            Text("Live Wallet Intelligence")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.66))
+                .foregroundStyle(ThemeTokens.Text.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DesignSystem.Spacing.md)
@@ -313,33 +315,18 @@ struct ContentView: View {
         .background {
             ZStack {
                 Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                ThemeTokens.Card.top.opacity(0.92 + (0.06 * t)),
-                                ThemeTokens.Card.bottom.opacity(0.95 + (0.04 * t))
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                Rectangle().fill(Color.black.opacity(overlayDark + 0.06))
-                LinearGradient(
-                    colors: [ThemeTokens.Card.innerHighlight.opacity(materialOpacity), Color.clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
+                    .fill(ThemeTokens.Card.surface.opacity(0.96 + (0.04 * t)))
             }
         }
         .overlay(
             Rectangle()
-                .fill(Color.white.opacity(0.05))
+                .fill(ThemeTokens.Card.divider)
                 .frame(height: 1),
             alignment: .top
         )
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.05))
+                .fill(ThemeTokens.Card.divider)
                 .frame(height: 1)
         }
         .onLongPressGesture(minimumDuration: 0.7) {
@@ -349,11 +336,11 @@ struct ContentView: View {
     }
 
     private var walletControlCard: some View {
-        DarkCard(cornerRadius: 24, contentPadding: 16) {
+        DarkCard(contentPadding: 16) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 Text("Wallet")
                     .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 WalletInputView(
                     walletAddress: $viewModel.walletAddress,
@@ -382,7 +369,7 @@ struct ContentView: View {
                     .padding(.vertical, 10)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(DesignSystem.Colors.accent)
+                            .fill(ThemeTokens.Accent.intelligenceBlue)
                     )
                     .disabled(!viewModel.isWalletAddressValid || isConnectingWallet)
                     .opacity((!viewModel.isWalletAddressValid || isConnectingWallet) ? 0.55 : 1.0)
@@ -394,11 +381,11 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(DesignSystem.Colors.surfaceElevated)
-                    .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
+                    .background(ThemeTokens.Card.innerSurface)
+                    .overlay(Capsule().stroke(ThemeTokens.Card.border, lineWidth: 1))
                     .clipShape(Capsule())
                     .disabled(
                         !viewModel.isWalletAddressValid ||
@@ -421,17 +408,17 @@ struct ContentView: View {
             if !viewModel.hasWalletAddress {
                 Image(systemName: "info.circle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                 Text("Paste a Solana wallet address to begin.")
                     .font(DesignSystem.Typography.meta.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             } else if !viewModel.isWalletAddressValid {
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.warning)
+                    .foregroundStyle(ThemeTokens.Accent.elevated)
                 Text(viewModel.walletValidationMessage ?? "Enter a valid wallet address.")
                     .font(DesignSystem.Typography.meta.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.warning)
+                    .foregroundStyle(ThemeTokens.Accent.elevated)
             } else if scanStatusState.retryable {
                 Button {
                     guard !isRetryingScanStatus else { return }
@@ -448,23 +435,23 @@ struct ContentView: View {
                         Text(isRetryingScanStatus ? "Retrying..." : "Scan failed. Tap retry.")
                             .font(DesignSystem.Typography.meta.weight(.semibold))
                     }
-                    .foregroundStyle(DesignSystem.Colors.danger)
+                    .foregroundStyle(ThemeTokens.Accent.critical)
                 }
                 .buttonStyle(.plain)
             } else if scanStatusState.showsLoading || isConnectingWallet {
                 ProgressView()
                     .controlSize(.mini)
-                    .tint(DesignSystem.Colors.textSecondary)
+                    .tint(ThemeTokens.Text.secondary)
                 Text("Scanning...")
                     .font(DesignSystem.Typography.meta.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             } else {
                 Image(systemName: "checkmark.seal")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.safe)
+                    .foregroundStyle(ThemeTokens.Accent.green)
                 Text("Connected (\(shortWalletAddress(viewModel.walletAddress)))")
                     .font(DesignSystem.Typography.meta.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
             Spacer()
         }
@@ -481,7 +468,7 @@ struct ContentView: View {
             HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
                 Text("Scan status")
                     .font(DesignSystem.Typography.meta.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
 
                 Spacer()
 
@@ -530,7 +517,7 @@ struct ContentView: View {
                     if scanStatusState.showsLoading {
                         ProgressView()
                             .controlSize(.mini)
-                            .tint(DesignSystem.Colors.textSecondary)
+                            .tint(ThemeTokens.Text.secondary)
                     } else {
                         Image(systemName: scanStatusState.icon)
                             .font(.caption.weight(.semibold))
@@ -548,7 +535,7 @@ struct ContentView: View {
             if scanStatusState.retryable, let scanErrorCodeText {
                 Text(scanErrorCodeText)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
@@ -560,10 +547,10 @@ struct ContentView: View {
 #if DEBUG
         let env = ProcessInfo.processInfo.environment
         if env["PRISMESH_FORCE_SCAN_LOADING"] == "1" {
-            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: ThemeTokens.Text.secondary, showsLoading: true, retryable: false, isError: false)
         }
         if env["PRISMESH_FORCE_SCAN_ERROR"] == "1" {
-            return ScanStatusState(message: "Scan failed. Tap to retry.", icon: "exclamationmark.triangle.fill", color: DesignSystem.Colors.danger, showsLoading: false, retryable: true, isError: true)
+            return ScanStatusState(message: "Scan failed. Tap to retry.", icon: "exclamationmark.triangle.fill", color: ThemeTokens.Accent.critical, showsLoading: false, retryable: true, isError: true)
         }
 #endif
 
@@ -573,7 +560,7 @@ struct ContentView: View {
                 return ScanStatusState(
                     message: "Scan failed. Tap to retry.",
                     icon: "exclamationmark.triangle.fill",
-                    color: DesignSystem.Colors.danger,
+                    color: ThemeTokens.Accent.critical,
                     showsLoading: false,
                     retryable: true,
                     isError: true
@@ -582,24 +569,24 @@ struct ContentView: View {
             return ScanStatusState(
                 message: viewModel.passiveScanFailureMessage ?? "Monitoring warming up",
                 icon: "clock.badge.exclamationmark",
-                color: DesignSystem.Colors.textSecondary,
+                color: ThemeTokens.Text.secondary,
                 showsLoading: false,
                 retryable: false,
                 isError: false
             )
         case .scanning:
             if isConnectingWallet {
-                return ScanStatusState(message: "Connecting...", icon: "link", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
+                return ScanStatusState(message: "Connecting...", icon: "link", color: ThemeTokens.Text.secondary, showsLoading: true, retryable: false, isError: false)
             }
-            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: DesignSystem.Colors.textSecondary, showsLoading: true, retryable: false, isError: false)
+            return ScanStatusState(message: "Scanning wallet activity...", icon: "waveform.path.ecg", color: ThemeTokens.Text.secondary, showsLoading: true, retryable: false, isError: false)
         case .success(let checked):
             let age = Date().timeIntervalSince(checked)
             if age > 6 * 60 * 60 {
-                return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: DesignSystem.Colors.warning, showsLoading: false, retryable: true, isError: false)
+                return ScanStatusState(message: "Delayed sync", icon: "clock.badge.exclamationmark", color: ThemeTokens.Accent.elevated, showsLoading: false, retryable: true, isError: false)
             }
-            return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
+            return ScanStatusState(message: "Updated \(relativeFormatter.localizedString(for: checked, relativeTo: Date()))", icon: "clock", color: ThemeTokens.Text.secondary, showsLoading: false, retryable: false, isError: false)
         case .idle:
-            return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: DesignSystem.Colors.textSecondary, showsLoading: false, retryable: false, isError: false)
+            return ScanStatusState(message: "Ready", icon: "checkmark.seal", color: ThemeTokens.Text.secondary, showsLoading: false, retryable: false, isError: false)
         }
     }
 
@@ -645,13 +632,13 @@ struct ContentView: View {
 
         var body: some View {
             Capsule()
-                .fill(Color.white.opacity(0.08))
+                .fill(ThemeTokens.Card.divider.opacity(0.9))
                 .frame(height: 2)
                 .overlay(alignment: .leading) {
                     Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [Color.clear, DesignSystem.Colors.accent.opacity(0.45), Color.clear],
+                                colors: [Color.clear, ThemeTokens.Accent.intelligenceBlue.opacity(0.45), Color.clear],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -678,14 +665,29 @@ struct ContentView: View {
                 }
                 .frame(height: 0)
 
+                Text(themeProofText)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ThemeTokens.Text.primary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(ThemeTokens.Card.innerSurface)
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(ThemeTokens.Card.border, lineWidth: 1)
+                    )
+
+                ProtectionControlsCard(viewModel: viewModel)
+
                 walletControlCard
                     .animation(.easeInOut(duration: 0.2), value: scanStatusState.message)
 
-                if !viewModel.isWalletAddressValid {
-                    emptyStateCard
-                } else if viewModel.isLoading && viewModel.historyEvents.isEmpty {
+                if viewModel.isWalletAddressValid, viewModel.isLoading && viewModel.historyEvents.isEmpty {
                     dashboardSkeletonState
-                } else {
+                } else if viewModel.isWalletAddressValid {
                     intelligenceSummaryCard
 
                     threatSurfaceBreakdownCard
@@ -709,7 +711,7 @@ struct ContentView: View {
                 if let warning = viewModel.freshnessWarning, viewModel.lastCheckedAt != nil {
                     Text(warning)
                         .font(DesignSystem.Typography.meta)
-                        .foregroundStyle(DesignSystem.Colors.warning)
+                        .foregroundStyle(ThemeTokens.Accent.elevated)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -729,61 +731,77 @@ struct ContentView: View {
     }
 
     private var intelligenceSummaryCard: some View {
-        DarkCard(cornerRadius: 26, contentPadding: 20) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                HStack {
-                    Text("Exposure Index")
-                        .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Spacer()
-                    HStack(spacing: 6) {
-                        MonitoringDot(size: 7)
-                        Text("Live")
-                            .font(DesignSystem.Typography.meta.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+        Button {
+            navigationPath.append(DashboardRoute.exposureDetail)
+        } label: {
+            DarkCard(contentPadding: 20) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    HStack {
+                        Text("Exposure Index")
+                            .font(DesignSystem.Typography.cardTitle.weight(.semibold))
+                            .foregroundStyle(ThemeTokens.Text.primary)
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(headerIndicatorColor)
+                                .frame(width: 6, height: 6)
+                            Text(headerIndicatorLabel)
+                                .font(DesignSystem.Typography.meta.weight(.semibold))
+                                .foregroundStyle(ThemeTokens.Text.secondary)
+                        }
                     }
-                }
 
-                HStack(alignment: .lastTextBaseline, spacing: DesignSystem.Spacing.xs) {
-                    Text(exposureIndexDisplay)
-                        .font(DesignSystem.Typography.metricLarge)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: exposureIndex)
-                    Text("Exposure Index")
+                    HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.md) {
+                        Text(exposureIndexDisplay)
+                            .font(DesignSystem.Typography.metricLarge)
+                            .foregroundStyle(ThemeTokens.Text.primary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: exposureIndex)
+                        Spacer()
+                    }
+
+                    Text(exposureTierLabel)
                         .font(DesignSystem.Typography.body.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    Spacer()
-                    MetricPill(level: exposureThreatLevel)
+                        .foregroundStyle(exposureTierColor)
+
+                    HStack(spacing: 6) {
+                        Text(exposureTrendValue >= 0 ? "↑" : "↓")
+                        Text(String(format: "%@%.1f%% (24h)", exposureTrendValue >= 0 ? "+" : "-", abs(exposureTrendValue)))
+                    }
+                    .font(DesignSystem.Typography.meta.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.Text.secondary)
+
+                    RiskScoreProgressBar(
+                        progress: Double(exposureIndex) / 100.0,
+                        tint: exposureProgressColor
+                    )
+
+                    Text(exposureReasonText)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.96))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Last scan: \(lastScanRelativeText)")
+                        .font(DesignSystem.Typography.meta)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
                 }
-
-                TrendChip(value: exposureTrendValue, suffix: "24h")
-
-                RiskScoreProgressBar(progress: Double(exposureIndex) / 100.0)
-
-                Text(exposureReasonText)
-                    .font(DesignSystem.Typography.body)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.96))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("Last scan: \(lastScanRelativeText)")
-                    .font(DesignSystem.Typography.meta)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
         }
+        .buttonStyle(.plain)
     }
 
     private var threatSurfaceBreakdownCard: some View {
-        DarkCard(cornerRadius: 26, contentPadding: 18) {
+        DarkCard(contentPadding: 18) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 HStack {
                     Text("Threat Surface")
                         .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                     Spacer()
                     Text("Engineered")
                         .font(DesignSystem.Typography.meta.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.accent)
+                        .foregroundStyle(ThemeTokens.Accent.intelligenceBlue)
                 }
 
                 LazyVGrid(columns: [
@@ -804,14 +822,14 @@ struct ContentView: View {
     }
 
     private var behavioralPatternAnalysisCard: some View {
-        DarkCard(cornerRadius: 26, contentPadding: 18) {
+        DarkCard(contentPadding: 18) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 Text("Behavioral Pattern Analysis")
                     .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 Rectangle()
-                    .fill(Color.white.opacity(0.10))
+                    .fill(ThemeTokens.Card.divider)
                     .frame(height: 0.75)
 
                 ForEach(behavioralMetrics, id: \.label) { metric in
@@ -819,10 +837,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(metric.label)
                                 .font(DesignSystem.Typography.body)
-                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                                .foregroundStyle(ThemeTokens.Text.secondary)
                             Text(metric.value)
                                 .font(DesignSystem.Typography.body.weight(.semibold))
-                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                .foregroundStyle(ThemeTokens.Text.primary)
                         }
                         Spacer()
                         SparklineView(values: metric.sparkline)
@@ -835,11 +853,11 @@ struct ContentView: View {
     }
 
     private var protectionStatusCard: some View {
-        DarkCard(cornerRadius: 26, contentPadding: 18) {
+        DarkCard(contentPadding: 18) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 Text("Protection Coverage")
                     .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 protectionStatusRow(
                     title: "Monitoring",
@@ -869,14 +887,14 @@ struct ContentView: View {
         HStack {
             Image(systemName: isOn ? "checkmark.shield.fill" : "shield")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isOn ? DesignSystem.Colors.safe : DesignSystem.Colors.textSecondary)
+                .foregroundStyle(isOn ? ThemeTokens.Accent.green : ThemeTokens.Text.secondary)
             Text(title)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
             Spacer()
             Text(value)
                 .font(DesignSystem.Typography.meta.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
         }
     }
 
@@ -886,9 +904,9 @@ struct ContentView: View {
         let trend: String
 
         var severityColor: Color {
-            if score >= 75 { return DesignSystem.Colors.danger }
-            if score >= 45 { return DesignSystem.Colors.warning }
-            return DesignSystem.Colors.safe
+            if score >= 75 { return ThemeTokens.Accent.critical }
+            if score >= 45 { return ThemeTokens.Accent.elevated }
+            return ThemeTokens.Accent.green
         }
     }
 
@@ -903,11 +921,11 @@ struct ContentView: View {
             HStack {
                 Text("NFT Collection")
                     .font(DesignSystem.Typography.cardTitle)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                 Spacer()
                 Text("\(viewModel.nftCount) total")
                     .font(DesignSystem.Typography.meta.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textMuted)
+                    .foregroundStyle(ThemeTokens.Text.muted)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -925,7 +943,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             Text("Breakdown")
                 .font(DesignSystem.Typography.cardTitle)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
@@ -948,7 +966,7 @@ struct ContentView: View {
             }
 
             if viewModel.nftCountLoadState == .failure {
-                inlineRetryRow(message: "Couldn’t load NFTs. Tap to retry.", tintColor: DesignSystem.Colors.warning) {
+                inlineRetryRow(message: "Couldn’t load NFTs. Tap to retry.", tintColor: ThemeTokens.Accent.elevated) {
                     Haptic.medium()
                     Task { await retryNFTLoad() }
                 }
@@ -957,7 +975,7 @@ struct ContentView: View {
             if diagnosticsEnabled, let nftDiagnosticsSummary = viewModel.nftDiagnosticsSummary {
                 Text(nftDiagnosticsSummary)
                     .font(DesignSystem.Typography.meta)
-                    .foregroundStyle(DesignSystem.Colors.textMuted)
+                    .foregroundStyle(ThemeTokens.Text.muted)
             }
         }
     }
@@ -977,18 +995,18 @@ struct ContentView: View {
         return HStack(spacing: DesignSystem.Spacing.xs) {
             Text(title)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(isSelected ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary.opacity(0.92))
+                .foregroundStyle(isSelected ? ThemeTokens.Text.primary : ThemeTokens.Text.secondary.opacity(0.92))
             Text("(\(countText))")
                 .font(DesignSystem.Typography.body.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
             if showsSpinner {
                 ProgressView()
                     .controlSize(.mini)
-                    .tint(DesignSystem.Colors.textMuted)
+                    .tint(ThemeTokens.Text.muted)
             } else if let badgeSystemImage {
                 Image(systemName: badgeSystemImage)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.warning)
+                    .foregroundStyle(ThemeTokens.Accent.elevated)
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
@@ -1008,7 +1026,7 @@ struct ContentView: View {
                 .overlay {
                     if isSelected {
                         Capsule(style: .continuous)
-                            .fill(DesignSystem.Colors.accent.opacity(0.13))
+                            .fill(ThemeTokens.Accent.intelligenceBlue.opacity(0.13))
                     }
                 }
                 .overlay {
@@ -1024,7 +1042,7 @@ struct ContentView: View {
             Capsule(style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [Color.white.opacity(isSelected ? 0.24 : 0.16), Color.white.opacity(0.06)],
+                        colors: [ThemeTokens.Card.border.opacity(isSelected ? 1.0 : 0.75), ThemeTokens.Card.border.opacity(0.5)],
                         startPoint: .top,
                         endPoint: .bottom
                     ),
@@ -1075,14 +1093,14 @@ struct ContentView: View {
     }
 
     private var walletPatternAnalysisPanel: some View {
-        DarkCard(cornerRadius: 26, contentPadding: 18) {
+        DarkCard(contentPadding: 18) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 Text("Wallet Pattern Analysis")
                     .font(DesignSystem.Typography.cardTitle.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 Rectangle()
-                    .fill(Color.white.opacity(0.10))
+                    .fill(ThemeTokens.Card.divider)
                     .frame(height: 0.75)
 
                 patternAnalysisRow(label: "Most interacted protocol", value: mostInteractedProtocol, trend: nil)
@@ -1104,7 +1122,7 @@ struct ContentView: View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(ThemeTokens.Text.secondary)
             Spacer()
             HStack(spacing: 4) {
                 if let trend {
@@ -1112,13 +1130,13 @@ struct ContentView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(
                             trend == .up
-                                ? Color(red: 0.25, green: 0.80, blue: 0.45)
-                                : Color(red: 0.90, green: 0.35, blue: 0.35)
+                                ? ThemeTokens.Accent.critical
+                                : ThemeTokens.Accent.green
                         )
                 }
                 Text(value)
                     .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                     .multilineTextAlignment(.trailing)
             }
         }
@@ -1129,7 +1147,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             Text("Recent Activity")
                 .font(DesignSystem.Typography.cardTitle)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
 
             if viewModel.historyEvents.isEmpty && viewModel.isLoading {
                 loadingCard
@@ -1160,10 +1178,10 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.metadata.symbol)
                             .font(DesignSystem.Typography.body.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            .foregroundStyle(ThemeTokens.Text.primary)
                         Text("Wallet activity detected")
                             .font(DesignSystem.Typography.meta)
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .foregroundStyle(ThemeTokens.Text.secondary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
@@ -1172,17 +1190,17 @@ struct ContentView: View {
                             Text(formattedDelta(event.delta))
                         }
                         .font(DesignSystem.Typography.body.weight(.semibold))
-                        .foregroundStyle(isPositive ? Color.green : Color.red)
+                        .foregroundStyle(isPositive ? ThemeTokens.Accent.green : ThemeTokens.Accent.critical)
 
                         Text("Est. \(estimatedUSDText(for: event))")
                             .font(DesignSystem.Typography.meta)
-                            .foregroundStyle(DesignSystem.Colors.textMuted.opacity(0.72))
+                            .foregroundStyle(ThemeTokens.Text.muted.opacity(0.72))
                     }
                 }
 
                 Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(DesignSystem.Typography.meta)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.82))
+                    .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.82))
             }
         }
         .frame(maxWidth: .infinity, minHeight: 106, alignment: .leading)
@@ -1192,22 +1210,22 @@ struct ContentView: View {
     private var dashboardSkeletonState: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             RoundedRectangle(cornerRadius: DesignSystem.Radius.md, style: .continuous)
-                .fill(DesignSystem.Colors.surfaceElevated)
+                .fill(ThemeTokens.Card.innerSurface)
                 .frame(height: 212)
             RoundedRectangle(cornerRadius: DesignSystem.Radius.md, style: .continuous)
-                .fill(DesignSystem.Colors.surfaceElevated)
+                .fill(ThemeTokens.Card.innerSurface)
                 .frame(height: 148)
             RoundedRectangle(cornerRadius: DesignSystem.Radius.md, style: .continuous)
-                .fill(DesignSystem.Colors.surfaceElevated)
+                .fill(ThemeTokens.Card.innerSurface)
                 .frame(height: 128)
         }
         .overlay {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 ProgressView()
-                    .tint(DesignSystem.Colors.accent)
+                    .tint(ThemeTokens.Accent.intelligenceBlue)
                 Text("Loading intelligence snapshot...")
                     .font(DesignSystem.Typography.meta)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DesignSystem.Spacing.sm)
@@ -1217,53 +1235,95 @@ struct ContentView: View {
     }
 
     private var intelligenceFeedSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+        let feedEvents = Array(viewModel.intelligenceFeedEvents.prefix(6))
+        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             Text("Intelligence Feed")
                 .font(DesignSystem.Typography.cardTitle)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
 
             IntelligenceCard {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    intelligenceFeedRow(
-                        text: "New contract interaction detected",
-                        color: DesignSystem.Colors.accent,
-                        icon: "dot.radiowaves.left.and.right"
-                    )
-                    intelligenceFeedRow(
-                        text: "Risk delta \(exposureTrendText.replacingOccurrences(of: "↑ ", with: "").replacingOccurrences(of: "↓ ", with: ""))",
-                        color: exposureTrendValue >= 0 ? DesignSystem.Colors.warning : DesignSystem.Colors.safe,
-                        icon: exposureTrendValue >= 0 ? "arrow.up.right" : "arrow.down.right"
-                    )
-                    intelligenceFeedRow(
-                        text: "Liquidity exposure increased",
-                        color: DesignSystem.Colors.warning,
-                        icon: "drop.triangle"
-                    )
-                    intelligenceFeedRow(
-                        text: "Protocol trust rating \(protocolTrustMessage)",
-                        color: protocolTrustMessage == "downgraded" ? DesignSystem.Colors.danger : DesignSystem.Colors.safe,
-                        icon: "shield.lefthalf.filled"
-                    )
+                    if feedEvents.isEmpty {
+                        intelligenceFeedRow(
+                            title: "No policy events yet",
+                            detail: "Run a scan or use Test Alert from Protection Settings.",
+                            color: ThemeTokens.Text.secondary,
+                            icon: "dot.radiowaves.left.and.right",
+                            timestamp: nil
+                        )
+                    } else {
+                        ForEach(feedEvents) { event in
+                            intelligenceFeedRow(
+                                title: event.title,
+                                detail: event.detail,
+                                color: feedColor(for: event.severity),
+                                icon: feedIcon(for: event.type),
+                                timestamp: event.timestamp
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func intelligenceFeedRow(text: String, color: Color, icon: String) -> some View {
-        Label(text, systemImage: icon)
-            .font(DesignSystem.Typography.body.weight(.semibold))
-            .foregroundStyle(color)
+    private func intelligenceFeedRow(title: String, detail: String, color: Color, icon: String, timestamp: Date?) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 16, height: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.Text.primary)
+                Text(detail)
+                    .font(DesignSystem.Typography.meta)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
+                if let timestamp {
+                    Text(timestamp.formatted(date: .omitted, time: .shortened))
+                        .font(DesignSystem.Typography.meta)
+                        .foregroundStyle(ThemeTokens.Text.muted)
+                        .monospacedDigit()
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private func feedColor(for severity: IntelligenceEventSeverity) -> Color {
+        switch severity {
+        case .info:
+            return ThemeTokens.Accent.intelligenceBlue
+        case .warning:
+            return ThemeTokens.Accent.elevated
+        case .critical:
+            return ThemeTokens.Accent.critical
+        }
+    }
+
+    private func feedIcon(for type: IntelligenceEventType) -> String {
+        switch type {
+        case .scan:
+            return "waveform.path.ecg"
+        case .policy:
+            return "checklist"
+        case .risk:
+            return "exclamationmark.triangle.fill"
+        case .system:
+            return "gearshape.2"
+        }
     }
 
     private func feedRow(title: String, value: String) -> some View {
         HStack(alignment: .top) {
             Text(title)
                 .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
             Spacer()
             Text(value)
                 .font(DesignSystem.Typography.body.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
                 .multilineTextAlignment(.trailing)
         }
     }
@@ -1273,7 +1333,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 Text("Connect your wallet to start intelligence monitoring.")
                     .font(DesignSystem.Typography.body)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
 
                 Button {
                     Task { await connectAndSyncIfNeeded() }
@@ -1282,7 +1342,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.black.opacity(0.84))
+                .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(connectWalletButtonColor)
@@ -1298,12 +1358,12 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Preparing your first snapshot")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
             Text("This usually takes a few seconds.")
                 .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
             ProgressView()
-                .tint(DesignSystem.Colors.accent)
+                .tint(ThemeTokens.Accent.intelligenceBlue)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -1314,7 +1374,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Quick check-in: anything confusing or missing?")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
 
             HStack(spacing: 10) {
                 Button("Send Feedback") {
@@ -1324,10 +1384,10 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.black.opacity(0.9))
+                .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(DesignSystem.Colors.accent)
+                .background(ThemeTokens.Accent.intelligenceBlue)
                 .clipShape(Capsule())
 
                 Button("Dismiss") {
@@ -1335,11 +1395,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(DesignSystem.Colors.surface, in: Capsule(style: .continuous))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75))
+                .background(ThemeTokens.Card.top, in: Capsule(style: .continuous))
+                .overlay(Capsule().strokeBorder(ThemeTokens.Card.border, lineWidth: 0.75))
 
                 Spacer()
             }
@@ -1355,7 +1415,7 @@ struct ContentView: View {
             LazyVStack(alignment: .leading, spacing: 10) {
                 Text("Alerts")
                     .font(DesignSystem.Typography.h2.weight(.bold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 alertFilterChips
 
@@ -1387,13 +1447,13 @@ struct ContentView: View {
                     } label: {
                         Text(filter.rawValue)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(selected ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                            .foregroundStyle(selected ? ThemeTokens.Text.primary : ThemeTokens.Text.secondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .background(selected ? DesignSystem.Colors.surfaceElevated : DesignSystem.Colors.surface)
+                            .background(selected ? ThemeTokens.Card.innerSurface : ThemeTokens.Card.top)
                             .overlay(
                                 Capsule(style: .continuous)
-                                    .stroke(selected ? DesignSystem.Colors.border.opacity(1.0) : DesignSystem.Colors.border.opacity(0.75), lineWidth: 1)
+                                    .stroke(selected ? ThemeTokens.Card.border.opacity(1.0) : ThemeTokens.Card.border.opacity(0.75), lineWidth: 1)
                             )
                             .clipShape(Capsule(style: .continuous))
                     }
@@ -1440,7 +1500,7 @@ struct ContentView: View {
             LazyVStack(alignment: .leading, spacing: 10) {
                 Text("Intelligence")
                     .font(DesignSystem.Typography.h2.weight(.bold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 if viewModel.historyEvents.isEmpty {
                     simpleEmpty("No activity yet. Connect wallet to start.")
@@ -1464,13 +1524,13 @@ struct ContentView: View {
                                         Text(formattedDelta(event.delta))
                                     }
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                        .foregroundStyle(ThemeTokens.Text.primary)
                                     Text("Est. \(estimatedUSDText(for: event))")
                                         .font(.caption2)
-                                        .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.72))
+                                        .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.72))
                                     Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                                         .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.88))
+                                        .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.88))
                                 }
                                 Spacer(minLength: 0)
                             }
@@ -1510,27 +1570,27 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Profile")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                 Text("Tell us what blocked you. Keep it short.")
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
 
                 TextEditor(text: $feedbackMessage)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 160)
                     .padding(8)
-                    .background(DesignSystem.Colors.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(DesignSystem.Colors.border, lineWidth: 1))
+                    .background(ThemeTokens.Card.top)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(ThemeTokens.Card.border, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 PhotosPicker(selection: $selectedScreenshot, matching: .images) {
                     Text(screenshotBase64 == nil ? "Attach Screenshot (optional)" : "Screenshot attached")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(DesignSystem.Colors.surface)
-                        .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
+                        .background(ThemeTokens.Card.top)
+                        .overlay(Capsule().stroke(ThemeTokens.Card.border, lineWidth: 1))
                         .clipShape(Capsule())
                 }
 
@@ -1539,17 +1599,17 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.black.opacity(0.9))
+                .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(DesignSystem.Colors.accent)
+                .background(ThemeTokens.Accent.intelligenceBlue)
                 .clipShape(Capsule())
                 .disabled(isSendingFeedback || feedbackMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 if let feedbackStatus {
                     Text(feedbackStatus)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
                 }
 
                 if diagnosticsEnabled {
@@ -1558,17 +1618,17 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
-                    .background(DesignSystem.Colors.surface)
-                    .overlay(Capsule().stroke(DesignSystem.Colors.border, lineWidth: 1))
+                    .background(ThemeTokens.Card.top)
+                    .overlay(Capsule().stroke(ThemeTokens.Card.border, lineWidth: 1))
                     .clipShape(Capsule())
                 }
 
                 Text("Build ID: \(buildID)")
                     .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
             .padding(16)
         }
@@ -1587,7 +1647,7 @@ struct ContentView: View {
     private func simpleEmpty(_ text: String) -> some View {
         Text(text)
             .font(.footnote)
-            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .foregroundStyle(ThemeTokens.Text.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .cardStyleLeft(cornerRadius: DesignSystem.Radius.lg)
@@ -1613,9 +1673,7 @@ struct ContentView: View {
             if tab == .intelligence { viewModel.trackActivityTabOpen() }
             if tab == .profile { viewModel.trackFeedbackOpen() }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.top, 2)
     }
 
     private func connectAndSyncIfNeeded() async {
@@ -1755,17 +1813,29 @@ struct ContentView: View {
 
     private var confidenceColor: Color {
         switch viewModel.dataConfidenceLabel {
-        case "High confidence data": return DesignSystem.Colors.accent.opacity(0.78)
-        case "Partial data": return DesignSystem.Colors.warning
-        default: return DesignSystem.Colors.danger
+        case "High confidence data": return ThemeTokens.Accent.intelligenceBlue.opacity(0.78)
+        case "Partial data": return ThemeTokens.Accent.elevated
+        default: return ThemeTokens.Accent.critical
         }
+    }
+
+    private var appBuildVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+    }
+
+    private var appShortVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    private var themeProofText: String {
+        "THEME V4 • KRAKEN SURFACES • v\(appShortVersion) (\(appBuildVersion)) • SIG_\(appBuildVersion)A"
     }
 
     private func walletStatusColor(_ status: WalletConnectStatus) -> Color {
         switch status {
-        case .connecting: return DesignSystem.Colors.textSecondary
-        case .success:    return Color(red: 0.25, green: 0.80, blue: 0.45)
-        case .failure:    return DesignSystem.Colors.danger
+        case .connecting: return ThemeTokens.Text.secondary
+        case .success:    return ThemeTokens.Accent.green
+        case .failure:    return ThemeTokens.Accent.critical
         }
     }
 
@@ -1778,7 +1848,7 @@ struct ContentView: View {
     }
 
     private var connectWalletButtonColor: Color {
-        DesignSystem.Colors.accent.opacity(0.88)
+        ThemeTokens.Accent.intelligenceBlue.opacity(0.88)
     }
 
     @ViewBuilder
@@ -1786,7 +1856,7 @@ struct ContentView: View {
         HStack(spacing: 6) {
             if isConnectingWallet {
                 ProgressView()
-                    .tint(Color.black.opacity(0.84))
+                    .tint(ThemeTokens.Background.base.opacity(0.95))
                     .scaleEffect(0.85)
             } else if didJustConnect || walletConnectStatus == .success {
                 Image(systemName: "checkmark.circle.fill")
@@ -1813,25 +1883,8 @@ struct ContentView: View {
         max(0, min(100, 100 - Int((highRiskRatio * 100).rounded())))
     }
 
-    // Exposure Index (professional framing):
-    // Contract Risk (30%) + Protocol Trust inverse (20%) + Interaction Velocity (15%)
-    // + Asset Volatility proxy (15%) + Counterparty Risk (20%)
     private var exposureIndex: Int {
-        guard viewModel.hasValidWalletAddress else { return 0 }
-        let contractRisk = min(100, viewModel.highRiskCount * 18 + viewModel.mediumRiskCount * 8)
-        let protocolTrustInverse = max(0, 100 - integrityScore)
-        let interactionVelocity = min(100, viewModel.historyEvents.count * 10)
-        let assetVolatilityProxy = min(100, Int((NSDecimalNumber(decimal: viewModel.totalDetectedAmount).doubleValue * 6).rounded()))
-        let counterpartyRisk = min(100, unverifiedAssetsCount * 16 + suspiciousTokensCount * 12)
-
-        let weighted =
-            (Double(contractRisk) * 0.30) +
-            (Double(protocolTrustInverse) * 0.20) +
-            (Double(interactionVelocity) * 0.15) +
-            (Double(assetVolatilityProxy) * 0.15) +
-            (Double(counterpartyRisk) * 0.20)
-
-        return max(0, min(100, Int(weighted.rounded())))
+        viewModel.exposureIndex
     }
 
     private var uptimePercentage: Int {
@@ -1881,7 +1934,7 @@ struct ContentView: View {
     }
 
     private var nodeStatusColor: Color {
-        nodeStatusLabel == "Online" ? DesignSystem.Colors.safe : DesignSystem.Colors.danger
+        nodeStatusLabel == "Online" ? ThemeTokens.Accent.green : ThemeTokens.Accent.critical
     }
 
     private var uptimePercentageText: String {
@@ -2006,29 +2059,65 @@ struct ContentView: View {
     }
 
     private var exposureStatusLabel: String {
-        switch exposureIndex {
-        case ..<25: return "Low"
-        case ..<50: return "Guarded"
-        case ..<75: return "Elevated"
-        default: return "Critical"
-        }
+        viewModel.exposureTier.label
     }
 
     private var exposureThreatLevel: ThreatLevel {
         switch exposureStatusLabel {
-        case "Low": return .low
         case "Guarded": return .guarded
+        case "Stable": return .low
         case "Elevated": return .elevated
         default: return .critical
         }
     }
 
-    private var exposureStatusColor: Color {
-        switch exposureStatusLabel {
-        case "Low": return DesignSystem.Colors.safe
-        case "Guarded": return Color(red: 0.80, green: 0.88, blue: 1.0)
-        case "Elevated": return DesignSystem.Colors.warning
-        default: return DesignSystem.Colors.danger
+    private var exposureTierLabel: String {
+        viewModel.exposureTier.label
+    }
+
+    private var exposureTierColor: Color {
+        switch viewModel.exposureTier {
+        case .guarded:
+            return ThemeTokens.Accent.stable
+        case .stable:
+            return ThemeTokens.Accent.stable
+        case .elevated:
+            return ThemeTokens.Accent.elevated
+        case .critical:
+            return ThemeTokens.Accent.critical
+        }
+    }
+
+    private var exposureProgressColor: Color {
+        switch viewModel.exposureTier {
+        case .guarded, .stable:
+            return ThemeTokens.Accent.intelligenceBlue
+        case .elevated:
+            return ThemeTokens.Accent.elevated
+        case .critical:
+            return ThemeTokens.Accent.critical
+        }
+    }
+
+    private var headerIndicatorLabel: String {
+        switch viewModel.monitoringIndicator {
+        case .live:
+            return "Live"
+        case .stale:
+            return "Stale"
+        case .degraded:
+            return "Degraded"
+        }
+    }
+
+    private var headerIndicatorColor: Color {
+        switch viewModel.monitoringIndicator {
+        case .live:
+            return ThemeTokens.Accent.green
+        case .stale:
+            return ThemeTokens.Text.secondary
+        case .degraded:
+            return ThemeTokens.Accent.critical
         }
     }
 
@@ -2048,7 +2137,7 @@ struct ContentView: View {
     private var threatSurfaceMetrics: [ThreatSurfaceMetric] {
         [
             .init(label: "Contract Risk Exposure", score: min(100, viewModel.highRiskCount * 20 + viewModel.mediumRiskCount * 10), trend: "+\(max(1, viewModel.highRiskCount))%"),
-            .init(label: "Protocol Trust Risk", score: min(100, max(0, 100 - integrityScore)), trend: "+\(min(15, max(2, viewModel.mediumRiskCount * 2)))%"),
+            .init(label: "System Integrity Risk", score: min(100, max(0, 100 - integrityScore)), trend: "+\(min(15, max(2, viewModel.mediumRiskCount * 2)))%"),
             .init(label: "Counterparty Risk", score: min(100, unverifiedAssetsCount * 15 + suspiciousTokensCount * 10), trend: "+\(max(2, unverifiedAssetsCount * 2))%"),
             .init(label: "Interaction Velocity", score: min(100, viewModel.historyEvents.count * 9), trend: "+\(min(22, max(3, viewModel.historyEvents.count * 2)))%")
         ]
@@ -2159,14 +2248,14 @@ private struct IntelligenceBackgroundLayer: View {
         GeometryReader { proxy in
             ZStack {
                 GridPattern(spacing: 28)
-                    .stroke(DesignSystem.Colors.accent.opacity(0.03), lineWidth: 0.45)
+                    .stroke(ThemeTokens.Accent.intelligenceBlue.opacity(0.03), lineWidth: 0.45)
 
                 Circle()
                     .fill(
                         AngularGradient(
                             gradient: Gradient(stops: [
                                 .init(color: .clear, location: 0.0),
-                                .init(color: DesignSystem.Colors.accent.opacity(0.045), location: 0.07),
+                                .init(color: ThemeTokens.Accent.intelligenceBlue.opacity(0.045), location: 0.07),
                                 .init(color: .clear, location: 0.14),
                                 .init(color: .clear, location: 1.0)
                             ]),
@@ -2246,18 +2335,18 @@ private struct AlertSeverityCard: View {
                     )
                     Text(displayTitle)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                         .lineLimit(1)
                 }
 
                 Text(event.risk.reasons.first ?? "Review this activity for safety.")
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.92))
+                    .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.92))
                     .lineLimit(2)
 
                 Text(event.detectedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.7))
+                    .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.7))
             }
 
             Spacer(minLength: 6)
@@ -2291,47 +2380,34 @@ private struct BottomDock: View {
                 } label: {
                     VStack(spacing: 6) {
                         ZStack {
-                            Circle()
-                                .fill(DesignSystem.Colors.accent.opacity(isSelected ? 0.28 : 0))
-                                .frame(width: 40, height: 40)
-                                .blur(radius: isSelected ? 14 : 0)
-
                             Image(systemName: item.systemImage)
-                                .font(.system(size: 23, weight: .medium))
+                                .font(.system(size: 22, weight: .medium))
                                 .foregroundStyle(
                                     isSelected
-                                        ? DesignSystem.Colors.accent
-                                        : Color.white.opacity(0.78)
-                                )
-                                .shadow(
-                                    color: isSelected
-                                        ? DesignSystem.Colors.accent.opacity(0.75)
-                                        : .clear,
-                                    radius: 8,
-                                    x: 0,
-                                    y: 0
+                                        ? ThemeTokens.Accent.actionBlue
+                                        : ThemeTokens.Text.muted
                                 )
                         }
                         .frame(height: 28)
 
                         Circle()
-                            .fill(DesignSystem.Colors.accent)
+                            .fill(ThemeTokens.Accent.actionBlue)
                             .frame(width: 5, height: 5)
-                            .shadow(color: DesignSystem.Colors.accent.opacity(0.72), radius: 6, x: 0, y: 0)
                             .opacity(isSelected ? 1 : 0)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 64)
+                    .frame(height: 58)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 6)
-        .frame(height: 78)
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .frame(height: 72)
         .background {
-            RoundedRectangle(cornerRadius: 39, style: .continuous)
+            TopRoundedCorners(radius: ThemeTokens.Layout.dockRadius)
                 .fill(
                     LinearGradient(
                         colors: [ThemeTokens.Dock.top, ThemeTokens.Dock.bottom],
@@ -2340,25 +2416,41 @@ private struct BottomDock: View {
                     )
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 39, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.06),
-                                    Color.clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .init(x: 0.5, y: 0.35)
-                            )
-                        )
+                    TopRoundedCorners(radius: ThemeTokens.Layout.dockRadius)
+                        .stroke(ThemeTokens.Dock.border, lineWidth: 1)
                 }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 39, style: .continuous)
-                        .strokeBorder(ThemeTokens.Dock.border, lineWidth: 1)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(ThemeTokens.Card.divider)
+                        .frame(height: 1)
                 }
         }
-        .shadow(color: ThemeTokens.Dock.shadow, radius: 28, x: 0, y: 12)
-        .shadow(color: DesignSystem.Colors.accent.opacity(0.08), radius: 28, x: 0, y: 0)
+        .shadow(color: ThemeTokens.Dock.shadow, radius: 6, x: 0, y: -1)
+    }
+}
+
+private struct TopRoundedCorners: Shape {
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let r = min(radius, min(rect.width, rect.height) / 2)
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + r, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + r),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+
+        return path
     }
 }
 
@@ -2403,7 +2495,7 @@ private struct NFTThumbnailCell: View {
                             nftPlaceholder
                         case .empty:
                             ProgressView()
-                                .tint(DesignSystem.Colors.textMuted)
+                                .tint(ThemeTokens.Text.muted)
                         @unknown default:
                             nftPlaceholder
                         }
@@ -2421,7 +2513,7 @@ private struct NFTThumbnailCell: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(.white)
                                 .padding(3)
-                                .background(DesignSystem.Colors.accent.opacity(0.85))
+                                .background(ThemeTokens.Accent.intelligenceBlue.opacity(0.85))
                                 .clipShape(Circle())
                                 .padding(4)
                         }
@@ -2432,7 +2524,7 @@ private struct NFTThumbnailCell: View {
 
             Text(item.name)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(width: 76)
@@ -2441,19 +2533,22 @@ private struct NFTThumbnailCell: View {
 
     private var nftPlaceholder: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.22, green: 0.22, blue: 0.24).opacity(0.90),
-                    Color(red: 0.14, green: 0.14, blue: 0.16).opacity(0.90)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [ThemeTokens.Card.top, ThemeTokens.Card.bottom],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(ThemeTokens.Card.border, lineWidth: 0.8)
+                )
 
             Image(systemName: "photo.on.rectangle")
                 .font(.system(size: 22, weight: .light))
-                .foregroundStyle(Color.white.opacity(0.55))
+                .foregroundStyle(ThemeTokens.Text.muted)
         }
         .frame(width: 76, height: 76)
     }
@@ -2470,6 +2565,7 @@ private struct ConnectWalletButtonStyle: ButtonStyle {
 
 private struct RiskScoreProgressBar: View {
     let progress: Double
+    let tint: Color
 
     private var clampedProgress: Double {
         min(max(progress, 0), 1)
@@ -2480,12 +2576,12 @@ private struct RiskScoreProgressBar: View {
             let barWidth = max(0, geo.size.width * clampedProgress)
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.16))
+                    .fill(ThemeTokens.Card.innerSurface)
                     .overlay(
                         Capsule(style: .continuous)
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.white.opacity(0.10), Color.clear],
+                                    colors: [ThemeTokens.Card.innerHighlight, Color.clear],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
@@ -2496,17 +2592,15 @@ private struct RiskScoreProgressBar: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.72, green: 1.00, blue: 0.58),
-                                DesignSystem.Colors.accent,
-                                Color(red: 0.22, green: 0.86, blue: 0.18)
+                                tint.opacity(0.92),
+                                tint
                             ],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
                     .frame(width: barWidth)
-                    .shadow(color: DesignSystem.Colors.accent.opacity(0.78), radius: 5, x: 0, y: 0)
-                    .shadow(color: DesignSystem.Colors.accent.opacity(0.42), radius: 12, x: 0, y: 0)
+                    .shadow(color: tint.opacity(0.18), radius: 3, x: 0, y: 0)
             }
         }
         .frame(height: 12)
@@ -2537,13 +2631,13 @@ private struct StatTripletRow: View {
                     Text(metric.valueText)
                         .font(DesignSystem.Typography.metricMedium)
                         .monospacedDigit()
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.95)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(metric.label)
                         .font(DesignSystem.Typography.meta)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.92))
+                        .foregroundStyle(ThemeTokens.Text.secondary.opacity(0.92))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2564,13 +2658,12 @@ private struct SparklineView: View {
                 Path { path in
                     path.addLines(points)
                 }
-                .stroke(Color.white.opacity(0.12), lineWidth: 3)
-                .blur(radius: 2)
+                .stroke(ThemeTokens.Card.innerHighlight, lineWidth: 2)
 
                 Path { path in
                     path.addLines(points)
                 }
-                .stroke(DesignSystem.Colors.accent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                .stroke(ThemeTokens.Accent.intelligenceBlue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
             }
         }
     }
@@ -2590,24 +2683,6 @@ private struct SparklineView: View {
     }
 }
 
-struct MonitoringDot: View {
-    var size: CGFloat = 8
-    @State private var isPulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(Color.green.opacity(0.9))
-            .frame(width: size, height: size)
-            .scaleEffect(isPulsing ? 1.14 : 0.88)
-            .opacity(isPulsing ? 0.95 : 0.68)
-            .onAppear { isPulsing = true }
-            .animation(
-                .easeInOut(duration: 1.2).repeatForever(),
-                value: isPulsing
-            )
-    }
-}
-
 private struct BetaOnboardingView: View {
     let onDismiss: () -> Void
     let onFeedback: () -> Void
@@ -2615,20 +2690,13 @@ private struct BetaOnboardingView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.11, blue: 0.14),
-                    Color(red: 0.05, green: 0.06, blue: 0.08)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            ThemeTokens.Background.gradient
+                .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 16) {
                 Text("Beta Test")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
 
                 onboardingBullet("Connect your wallet to load your summary.")
                 onboardingBullet("Pull to refresh if numbers look outdated.")
@@ -2642,11 +2710,11 @@ private struct BetaOnboardingView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(DesignSystem.Colors.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(DesignSystem.Colors.border, lineWidth: 1))
+                    .background(ThemeTokens.Card.top)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(ThemeTokens.Card.border, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     Button("Got it") {
@@ -2654,10 +2722,10 @@ private struct BetaOnboardingView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.black.opacity(0.9))
+                    .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(DesignSystem.Colors.accent)
+                    .background(ThemeTokens.Accent.intelligenceBlue)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
@@ -2671,12 +2739,12 @@ private struct BetaOnboardingView: View {
     private func onboardingBullet(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(DesignSystem.Colors.accent)
+                .fill(ThemeTokens.Accent.intelligenceBlue)
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
             Text(text)
                 .font(.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
         }
     }
 }
@@ -2760,29 +2828,22 @@ private struct AboutView: View {
                 if envMismatchWarning != nil {
                     Text(envMismatchWarning ?? "")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.danger)
-                        .listRowBackground(DesignSystem.Colors.surface)
+                        .foregroundStyle(ThemeTokens.Accent.critical)
+                        .listRowBackground(ThemeTokens.Card.top)
                 }
 
                 if let diagnosticsStatus {
                     Text(diagnosticsStatus)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .listRowBackground(DesignSystem.Colors.surface)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
+                        .listRowBackground(ThemeTokens.Card.top)
                 }
             }
             .disabled(isDiagnosticsActionRunning)
             .scrollContentBackground(.hidden)
             .background(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.10, green: 0.11, blue: 0.14),
-                        Color(red: 0.05, green: 0.06, blue: 0.08)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                ThemeTokens.Background.gradient
+                    .ignoresSafeArea()
             )
             .navigationTitle("About / Diagnostics")
             .navigationBarTitleDisplayMode(.inline)
@@ -2876,12 +2937,12 @@ private struct AboutView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
             Text(value)
                 .font(.body.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
         }
-        .listRowBackground(DesignSystem.Colors.surface)
+        .listRowBackground(ThemeTokens.Card.top)
     }
 }
 
@@ -2903,12 +2964,12 @@ private struct MaintenanceView: View {
             VStack(spacing: 10) {
                 Text("Temporarily unavailable")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .foregroundStyle(ThemeTokens.Text.primary)
                     .multilineTextAlignment(.center)
 
                 Text(message)
                     .font(.body)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 20)
@@ -2918,24 +2979,17 @@ private struct MaintenanceView: View {
             }
             .buttonStyle(.plain)
             .font(.headline.weight(.bold))
-            .foregroundStyle(Color.black.opacity(0.9))
+            .foregroundStyle(ThemeTokens.Background.base.opacity(0.95))
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .background(DesignSystem.Colors.accent)
+            .background(ThemeTokens.Accent.intelligenceBlue)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.11, blue: 0.14),
-                    Color(red: 0.05, green: 0.06, blue: 0.08)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            ThemeTokens.Background.gradient
+                .ignoresSafeArea()
         )
     }
 }

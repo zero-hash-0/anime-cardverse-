@@ -80,10 +80,18 @@ struct NFTCountFetchResult: Equatable {
     let diagnostics: NFTCountDiagnostics
 }
 
+struct NFTItem: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let imageURL: URL?
+    let isCompressed: Bool
+}
+
 protocol WalletNFTCounting {
     func fetchNFTSummary(owner: String) async throws -> NFTSummary
     func fetchCounts(wallet: String) async throws -> WalletNFTCounts
     func fetchDetailedCounts(wallet: String) async throws -> NFTCountFetchResult
+    func fetchNFTItems(owner: String) async -> [NFTItem]
 }
 
 protocol CompressedNFTCounting {
@@ -195,6 +203,10 @@ final class WalletNFTCountService: WalletNFTCounting {
             compressedFound: summary.debug.compressedFound
         )
         return NFTCountFetchResult(counts: counts, diagnostics: diagnostics)
+    }
+
+    func fetchNFTItems(owner: String) async -> [NFTItem] {
+        []
     }
 
 #if DEBUG

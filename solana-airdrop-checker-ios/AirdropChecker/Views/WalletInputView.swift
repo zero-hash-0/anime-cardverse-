@@ -4,12 +4,14 @@ import UIKit
 struct WalletInputView: View {
     @Binding var walletAddress: String
     @FocusState.Binding var isFocused: Bool
+    var walletConnectStatus: String? = nil
+    var walletErrorMessage: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Wallet Address")
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
 
             HStack(spacing: 8) {
                 TextField("Enter Solana wallet", text: $walletAddress)
@@ -18,16 +20,16 @@ struct WalletInputView: View {
                     .font(.system(.footnote, design: .monospaced))
                     .focused($isFocused)
                     .padding(12)
-                    .foregroundStyle(RadarTheme.Palette.textPrimary)
-                    .background(RadarTheme.Palette.surface)
+                    .foregroundStyle(ThemeTokens.Text.primary)
+                    .background(ThemeTokens.Card.top)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(
                                 LinearGradient(
                                     colors: [
-                                        RadarTheme.Palette.stroke,
-                                        RadarTheme.Palette.accent.opacity(0.42),
-                                        RadarTheme.Palette.stroke
+                                        ThemeTokens.Card.border,
+                                        ThemeTokens.Accent.intelligenceBlue.opacity(0.38),
+                                        ThemeTokens.Card.border
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -45,17 +47,27 @@ struct WalletInputView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(RadarTheme.Palette.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(RadarTheme.Palette.surfaceStrong)
-                .overlay(Capsule().stroke(RadarTheme.Palette.stroke, lineWidth: 1))
+                .background(ThemeTokens.Card.innerSurface)
+                .overlay(Capsule().stroke(ThemeTokens.Card.border, lineWidth: 1))
                 .clipShape(Capsule())
             }
 
             Text("Tip: Use a burner wallet for claim links and unknown token interactions.")
                 .font(.caption)
-                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
+
+            if let walletErrorMessage, !walletErrorMessage.isEmpty {
+                Text(walletErrorMessage)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(ThemeTokens.Accent.critical)
+            } else if let walletConnectStatus, !walletConnectStatus.isEmpty {
+                Text(walletConnectStatus)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(ThemeTokens.Text.secondary)
+            }
         }
     }
 }

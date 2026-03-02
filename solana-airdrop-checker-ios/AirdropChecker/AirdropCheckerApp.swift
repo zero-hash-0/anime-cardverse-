@@ -46,12 +46,15 @@ struct RadarGlassCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(ThemeTokens.Card.surface)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
+                    .stroke(ThemeTokens.Card.stroke, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.28), radius: 16, y: 8)
+            .shadow(color: ThemeTokens.Card.shadow, radius: ThemeTokens.Card.shadowRadius, y: ThemeTokens.Card.shadowY)
     }
 }
 

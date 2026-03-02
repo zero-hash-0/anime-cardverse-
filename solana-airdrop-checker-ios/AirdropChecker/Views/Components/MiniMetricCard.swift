@@ -14,19 +14,19 @@ struct MiniMetricCard: View {
                     .frame(width: 7, height: 7)
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text(value)
                 .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .foregroundStyle(ThemeTokens.Text.primary)
                 .lineLimit(1)
 
             Text(trendText)
                 .font(DesignSystem.Typography.meta.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
                 .lineLimit(1)
         }
         .padding(12)

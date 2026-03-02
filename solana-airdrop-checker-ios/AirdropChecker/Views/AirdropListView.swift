@@ -17,20 +17,20 @@ struct AirdropListView: View {
             HStack {
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(RadarTheme.Palette.accent)
+                        .fill(ThemeTokens.Accent.intelligenceBlue)
                         .frame(width: 7, height: 7)
-                        .shadow(color: RadarTheme.Palette.accent.opacity(0.5), radius: 6)
+                        .shadow(color: ThemeTokens.Accent.intelligenceBlue.opacity(0.5), radius: 6)
                     Text("Detected Activity")
                         .font(.headline)
-                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                 }
                 Spacer()
                 Text("\(events.count) items")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(RadarTheme.Palette.surface)
+                    .background(ThemeTokens.Card.top)
                     .clipShape(Capsule())
             }
 
@@ -38,21 +38,21 @@ struct AirdropListView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "waveform.path.ecg.rectangle")
                         .font(.title2)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
                     Text(emptyTitle)
                         .font(.headline)
-                        .foregroundStyle(RadarTheme.Palette.textPrimary)
+                        .foregroundStyle(ThemeTokens.Text.primary)
                     Text(emptySubtitle)
                         .font(.footnote)
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(24)
-                .background(RadarTheme.Palette.surface)
+                .background(ThemeTokens.Card.top)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(RadarTheme.Palette.stroke, lineWidth: 1)
+                        .stroke(ThemeTokens.Card.border, lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
@@ -136,22 +136,22 @@ private struct AirdropEventRow: View {
                         if event.metadata.verified {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.caption2)
-                                .foregroundStyle(Color(red: 0.08, green: 0.84, blue: 0.58))
+                                .foregroundStyle(ThemeTokens.Accent.green)
                         }
                     }
                     Text(event.metadata.symbol)
                         .font(.caption2)
-                        .foregroundStyle(RadarTheme.Palette.textSecondary)
+                        .foregroundStyle(ThemeTokens.Text.secondary)
                 }
 
                 Spacer()
                 Button(action: onToggleFavorite) {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(isFavorite ? RadarTheme.Palette.accent : RadarTheme.Palette.textSecondary)
+                        .foregroundStyle(isFavorite ? ThemeTokens.Accent.intelligenceBlue : ThemeTokens.Text.secondary)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 5)
-                        .background(RadarTheme.Palette.surface)
+                        .background(ThemeTokens.Card.innerSurface)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -169,10 +169,10 @@ private struct AirdropEventRow: View {
                         ForEach(event.metadata.tags.prefix(4), id: \.self) { tag in
                             Text(tag.uppercased())
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(RadarTheme.Palette.accent)
+                                .foregroundStyle(ThemeTokens.Accent.intelligenceBlue)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 4)
-                                .background(RadarTheme.Palette.accent.opacity(0.12))
+                                .background(ThemeTokens.Accent.intelligenceBlue.opacity(0.12))
                                 .clipShape(Capsule())
                         }
                     }
@@ -181,18 +181,18 @@ private struct AirdropEventRow: View {
 
             Text(event.mint)
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(RadarTheme.Palette.textSecondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
                 .lineLimit(1)
 
             HStack(alignment: .center) {
                 Text(event.risk.reasons.first ?? "No risk details")
                     .font(.caption2)
-                    .foregroundStyle(RadarTheme.Palette.textSecondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
                     .lineLimit(2)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(RadarTheme.Palette.textSecondary.opacity(0.7))
+                    .foregroundStyle(ThemeTokens.Text.muted)
             }
         }
         .padding(12)
@@ -207,7 +207,10 @@ private struct AirdropEventRow: View {
 
     private var backgroundGradient: LinearGradient {
         LinearGradient(
-            colors: [RadarTheme.Palette.surfaceStrong.opacity(0.92), RadarTheme.Palette.surface.opacity(0.88)],
+            colors: [
+                ThemeTokens.Card.innerSurface.opacity(0.92),
+                ThemeTokens.Card.top.opacity(0.88)
+            ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -215,12 +218,9 @@ private struct AirdropEventRow: View {
 
     private var borderColor: Color {
         switch event.risk.level {
-        case .low:
-            return Color(red: 0.08, green: 0.84, blue: 0.58).opacity(0.35)
-        case .medium:
-            return Color(red: 0.96, green: 0.80, blue: 0.46).opacity(0.42)
-        case .high:
-            return Color(red: 1.0, green: 0.36, blue: 0.36).opacity(0.38)
+        case .low:    return ThemeTokens.Accent.green.opacity(0.35)
+        case .medium: return ThemeTokens.Accent.elevated.opacity(0.42)
+        case .high:   return ThemeTokens.Accent.critical.opacity(0.38)
         }
     }
 
@@ -228,15 +228,19 @@ private struct AirdropEventRow: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.46))
+                .foregroundStyle(ThemeTokens.Text.muted.opacity(0.75))
             Text(value)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(ThemeTokens.Text.primary)
                 .lineLimit(1)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Color.white.opacity(0.05))
+        .background(ThemeTokens.Card.innerSurface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }
@@ -259,7 +263,7 @@ private struct EventDetailView: View {
                             .font(.title3.weight(.bold))
                         Text(event.metadata.symbol)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeTokens.Text.secondary)
                     }
                     Spacer()
                     RiskBadge(level: event.risk.level)
@@ -285,7 +289,11 @@ private struct EventDetailView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.08))
+                .background(ThemeTokens.Card.innerSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -296,7 +304,11 @@ private struct EventDetailView: View {
                         .textSelection(.enabled)
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.08))
+                .background(ThemeTokens.Card.innerSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 if !event.metadata.tags.isEmpty {
@@ -307,7 +319,11 @@ private struct EventDetailView: View {
                                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 5)
-                                    .background(Color.white.opacity(0.1))
+                                    .background(ThemeTokens.Card.innerSurface)
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+                                    )
                                     .clipShape(Capsule())
                             }
                         }
@@ -347,13 +363,18 @@ private struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeTokens.Text.secondary)
             Text(value)
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(ThemeTokens.Text.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color.white.opacity(0.08))
+        .background(ThemeTokens.Card.innerSurface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
@@ -362,13 +383,18 @@ private struct EventDetailView: View {
             HStack {
                 Label(title, systemImage: icon)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.Text.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
             .padding(10)
-            .background(Color.white.opacity(0.08))
+            .background(ThemeTokens.Card.innerSurface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -379,13 +405,18 @@ private struct EventDetailView: View {
             HStack {
                 Label(title, systemImage: icon)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.Text.primary)
                 Spacer()
                 Image(systemName: "arrow.up.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeTokens.Accent.intelligenceBlue)
             }
             .padding(10)
-            .background(Color.white.opacity(0.08))
+            .background(ThemeTokens.Card.innerSurface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(ThemeTokens.Card.border, lineWidth: 0.8)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
@@ -397,18 +428,18 @@ private struct RiskBadge: View {
     var body: some View {
         Text(level.title)
             .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(background)
-            .foregroundStyle(.white)
             .clipShape(Capsule())
     }
 
     private var background: Color {
         switch level {
-        case .low: return Color(red: 0.08, green: 0.84, blue: 0.58)
-        case .medium: return Color(red: 0.14, green: 0.65, blue: 1.0)
-        case .high: return Color(red: 1.0, green: 0.36, blue: 0.36)
+        case .low:    return ThemeTokens.Accent.green
+        case .medium: return ThemeTokens.Accent.intelligenceBlue
+        case .high:   return ThemeTokens.Accent.critical
         }
     }
 }
@@ -527,12 +558,12 @@ struct TokenIconView: View {
                     endRadius: max(12, size * 0.55)
                 )
             )
-            .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
+            .overlay(Circle().stroke(ThemeTokens.Card.border, lineWidth: 1))
+            .shadow(color: ThemeTokens.Card.shadow.opacity(0.6), radius: 4, x: 0, y: 2)
             .overlay(
                 Text(fallbackGlyph)
                     .font(.system(size: max(12, size * 0.42), weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.74))
+                    .foregroundStyle(ThemeTokens.Text.primary.opacity(0.74))
             )
     }
 
@@ -590,7 +621,7 @@ struct TokenIconDebugPreview: View {
                 )
                 Text("Known")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
 
             VStack(spacing: 8) {
@@ -602,11 +633,11 @@ struct TokenIconDebugPreview: View {
                 )
                 Text("Fallback")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeTokens.Text.secondary)
             }
         }
         .padding()
-        .background(Color.black)
+        .background(ThemeTokens.Background.base)
         .preferredColorScheme(.dark)
     }
 }

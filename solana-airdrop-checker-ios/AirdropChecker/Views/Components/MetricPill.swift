@@ -8,10 +8,10 @@ enum ThreatLevel: String {
 
     var color: Color {
         switch self {
-        case .low: return DesignSystem.Colors.safe
-        case .guarded: return DesignSystem.Colors.accent
-        case .elevated: return DesignSystem.Colors.warning
-        case .critical: return DesignSystem.Colors.danger
+        case .low: return ThemeTokens.Accent.stable
+        case .guarded: return ThemeTokens.Accent.stable
+        case .elevated: return ThemeTokens.Accent.elevated
+        case .critical: return ThemeTokens.Accent.critical
         }
     }
 }

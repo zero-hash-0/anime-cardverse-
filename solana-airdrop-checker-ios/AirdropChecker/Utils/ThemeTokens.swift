@@ -1,53 +1,91 @@
 import SwiftUI
 
 enum ThemeTokens {
+    static let buildSignature = "THEME_SIG_90A"
+
     enum Layout {
         static let unit8: CGFloat = 8
-        static let cardRadius: CGFloat = 24
+        static let cardRadius: CGFloat = 16
+        static let cardInnerRadius: CGFloat = 12
+        static let dockRadius: CGFloat = 18
     }
 
+    // MARK: - Background
     enum Background {
-        static let base = Color(hex: "#0C1117")
-        static let top = Color(hex: "#121A25")
-        static let bottom = Color(hex: "#090D14")
-        static let vignette = Color.black.opacity(0.46)
+        static let base = Color(hex: "#0A0E13")
+        static let top = Color(hex: "#0B1016")
+        static let bottom = Color(hex: "#070A0F")
+        static let vignette = Color.black.opacity(0.18)
+        static var gradient: LinearGradient {
+            LinearGradient(
+                colors: [top, base, bottom],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 
+    // MARK: - Card
     enum Card {
-        static let top = Color(hex: "#111823")
-        static let bottom = Color(hex: "#111823")
-        static let innerSurface = Color(hex: "#0E141D")
-        static let border = Color.white.opacity(0.06)
-        static let innerHighlight = Color.white.opacity(0.06)
-        static let iconBubble = Color(hex: "#0E141D")
-        static let shadow = Color.black.opacity(0.56)
-        static let shadowSecondary = Color.black.opacity(0.30)
+        static let surface = Color(hex: "#0F141B")
+        static let surfaceAlt = Color(hex: "#111923")
+        static let stroke = Color.white.opacity(0.08)
+        static let divider = Color.white.opacity(0.06)
+        static let highlightTop = Color.white.opacity(0.05)
+        static let shadow = Color.black.opacity(0.28)
+        static let shadowY: CGFloat = 6
+        static let shadowRadius: CGFloat = 14
+
+        // Backward-compatible aliases used by existing views.
+        static let top = surface
+        static let bottom = surface
+        static let innerSurface = surfaceAlt
+        static let border = stroke
+        static let innerHighlight = highlightTop
+        static let iconBubble = surfaceAlt
+        static let shadowSecondary = Color.black.opacity(0.12)
+        static var gradient: LinearGradient {
+            LinearGradient(
+                colors: [top, bottom],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 
+    // MARK: - Dock
     enum Dock {
-        static let top = Color(hex: "#111823")
-        static let bottom = Color(hex: "#0F1620")
-        static let border = Color.white.opacity(0.07)
-        static let shadow = Color.black.opacity(0.56)
+        static let top = Card.surface
+        static let bottom = Color(hex: "#0E141B")
+        static let border = Card.divider
+        static let shadow = Color.black.opacity(0.16)
     }
 
+    // MARK: - Text
     enum Text {
-        static let primary = Color(hex: "#F2F5F8")
-        static let secondary = Color(hex: "#9AA6B2")
-        static let muted = Color(hex: "#7F8A95")
+        static let primary = Color(hex: "#E6EDF3")
+        static let secondary = Color(hex: "#9AA7B2")
+        static let muted = Color(hex: "#6B7785")
     }
 
+    // MARK: - Accent
     enum Accent {
-        static let intelligenceBlue = Color(hex: "#4DA3FF")
-        static let green = Color(hex: "#2ED47A")
-        static let orange = Color(hex: "#FFB020")
-        static let critical = Color(hex: "#FF5A5F")
-        static let criticalMutedBackground = Color(hex: "#2A1518")
+        static let actionBlue = Color(hex: "#3B82F6")
+        static let intelligenceBlue = actionBlue
+        static let success = Color(hex: "#22C55E")
+        static let stable = success
+        static let green = stable
+        static let warning = Color(hex: "#F59E0B")
+        static let elevated = warning
+        static let danger = Color(hex: "#EF4444")
+        static let critical = danger
+        static let criticalMutedBackground = Color(hex: "#2A1416")
     }
 
+    // MARK: - Shadow
     enum Shadow {
-        static let softRadius: CGFloat = 22
-        static let softY: CGFloat = 10
+        static let softRadius: CGFloat = Card.shadowRadius
+        static let softY: CGFloat = Card.shadowY
     }
 }
 

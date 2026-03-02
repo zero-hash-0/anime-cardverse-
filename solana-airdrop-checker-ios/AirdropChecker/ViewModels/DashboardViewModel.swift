@@ -118,6 +118,12 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var nftCountLoadState: NFTCountLoadState = .idle
     @Published private(set) var nftDiagnosticsSummary: String?
     @Published private(set) var nftItems: [NFTItem] = []
+    @Published private(set) var intelligenceFeedEvents: [IntelligenceEvent] = []
+    @Published var exposureIndex: Int = 0
+    @Published var exposureTier: ExposureTier = .guarded
+    @Published var exposureFactorsLive: [ExposureFactor] = []
+    @Published var protectionLevel: ProtectionLevel = .passive
+    @Published var protectionSettings: ProtectionSettings = .default()
     @Published var showReminderBanner = false
     @Published var maintenanceMode = false
     @Published var maintenanceMessage = "Service is temporarily unavailable. Please try again in a few minutes."
@@ -139,6 +145,12 @@ final class DashboardViewModel: ObservableObject {
     private let autoScanEnabledKey = "auto_scan_enabled"
     private let favoriteMintsKey = "favorite_mints"
     private let hiddenMintsKey = "hidden_mints"
+    private let protectionLevelKey = "prismmesh_protection_level"
+    private let protectionSettingsKey = "prismmesh_protection_settings_v1"
+    private let lastExposureIndexKey = "prismmesh_last_exposure_index"
+    private let lastEvaluatedExposureIndexKey = "prismmesh_last_evaluated_exposure_index"
+    private let lastDeltaPolicyTriggerAtKey = "prismmesh_policy_last_delta_trigger_at"
+    private let lastCriticalPolicyTriggerAtKey = "prismmesh_policy_last_critical_trigger_at"
     private let lastOpenAtKey = "analytics_last_open_at"
     private let reminderDismissedAtKey = "reminder_dismissed_at"
     private var hasTrackedMaintenanceShown = false
@@ -157,6 +169,10 @@ final class DashboardViewModel: ObservableObject {
     private var autoScanTask: Task<Void, Never>?
     private var newsRefreshTask: Task<Void, Never>?
     private var newsRotationTask: Task<Void, Never>?
+    private var lastExposureIndexForPolicy: Int?
+    private var lastEvaluatedExposureIndex: Int?
+    private var lastDeltaPolicyTriggerAt: Date?
+    private var lastCriticalPolicyTriggerAt: Date?
 
     init(
         service: AirdropMonitorService,
@@ -181,14 +197,37 @@ final class DashboardViewModel: ObservableObject {
         self.nftCountService = nftCountService
         self.defaults = defaults
 
-        self.notificationsEnabled = defaults.object(forKey: notificationsEnabledKey) as? Bool ?? false
-        self.notifyHighRiskOnly = defaults.object(forKey: notifyHighRiskOnlyKey) as? Bool ?? false
+        let legacyNotificationsEnabled = defaults.object(forKey: notificationsEnabledKey) as? Bool ?? false
+        let legacyHighRiskOnly = defaults.object(forKey: notifyHighRiskOnlyKey) as? Bool ?? false
+        self.notificationsEnabled = legacyNotificationsEnabled
+        self.notifyHighRiskOnly = legacyHighRiskOnly
         self.autoScanEnabled = defaults.object(forKey: autoScanEnabledKey) as? Bool ?? false
         let favoriteMints = defaults.array(forKey: favoriteMintsKey) as? [String] ?? []
         self.favoriteMints = Set(favoriteMints)
         let hiddenMints = defaults.array(forKey: hiddenMintsKey) as? [String] ?? []
         self.hiddenMints = Set(hiddenMints)
         self.historyEvents = historyStore.load()
+        if let storedProtection = defaults.string(forKey: protectionLevelKey),
+           let level = ProtectionLevel(rawValue: storedProtection) {
+            self.protectionLevel = level
+        } else {
+            self.protectionLevel = .passive
+        }
+        self.protectionSettings = Self.loadProtectionSettings(
+            defaults: defaults,
+            key: protectionSettingsKey,
+            legacyAlertsEnabled: legacyNotificationsEnabled,
+            legacyHighRiskOnly: legacyHighRiskOnly
+        )
+        self.exposureIndex = defaults.object(forKey: lastExposureIndexKey) as? Int ?? 0
+        self.exposureTier = RiskModel.tier(for: self.exposureIndex)
+        self.lastEvaluatedExposureIndex = defaults.object(forKey: lastEvaluatedExposureIndexKey) as? Int
+        self.lastExposureIndexForPolicy = self.lastEvaluatedExposureIndex
+        self.lastDeltaPolicyTriggerAt = defaults.object(forKey: lastDeltaPolicyTriggerAtKey) as? Date
+        self.lastCriticalPolicyTriggerAt = defaults.object(forKey: lastCriticalPolicyTriggerAtKey) as? Date
+        // Keep legacy flags in sync while ProtectionSettings becomes the policy source of truth.
+        self.notificationsEnabled = self.protectionSettings.alertsEnabled
+        self.notifyHighRiskOnly = self.protectionSettings.highRiskOnly
 
         if let connected = walletSession.connectedWallet {
             walletAddress = connected
@@ -196,6 +235,15 @@ final class DashboardViewModel: ObservableObject {
             nftCountLoadState = .idle
             clearRefreshState(resetLastCheckedAt: false)
         }
+
+        appendIntelligenceEvent(
+            IntelligenceEvent(
+                type: .system,
+                title: "Monitoring initialized",
+                detail: "Policy engine is ready for scan evaluations.",
+                severity: .info
+            )
+        )
     }
 
     deinit {
@@ -252,17 +300,170 @@ final class DashboardViewModel: ObservableObject {
         scanLog("onDisappear: cancelled auto/news timers")
     }
 
+    func exposureTier(for value: Int) -> ExposureTier {
+        RiskModel.tier(for: value)
+    }
+
+    private var systemIntegrityScore: Int {
+        securityScore
+    }
+
+    private var suspiciousTokensCount: Int {
+        highRiskCount
+    }
+
+    private var unverifiedAssetsCount: Int {
+        historyEvents.filter { $0.metadata.logoURL == nil }.count
+    }
+
+    private func canonicalExposureFactors(deltaSeed: Bool = true) -> [ExposureFactor] {
+        let contractRisk = min(100, max(0, highRiskCount * 18 + mediumRiskCount * 8))
+        let systemIntegrityInverse = max(0, 100 - systemIntegrityScore)
+        let interactionVelocity = min(100, historyEvents.count * 10)
+        let assetVolatilityProxy = min(100, Int((NSDecimalNumber(decimal: totalDetectedAmount).doubleValue * 6).rounded()))
+        let counterpartyRisk = min(100, (unverifiedAssetsCount * 16) + (suspiciousTokensCount * 12))
+
+        return [
+            ExposureFactor(
+                id: "contract_risk",
+                name: "Contract Risk Exposure",
+                value: contractRisk,
+                delta24h: deltaSeed ? seededDelta(for: "contract_risk") : 0,
+                weight: RiskModel.contractRiskWeight
+            ),
+            ExposureFactor(
+                id: "system_integrity_inverse",
+                name: "System Integrity Inverse",
+                value: systemIntegrityInverse,
+                delta24h: deltaSeed ? seededDelta(for: "system_integrity_inverse") : 0,
+                weight: RiskModel.protocolTrustInverseWeight
+            ),
+            ExposureFactor(
+                id: "interaction_velocity",
+                name: "Interaction Velocity",
+                value: interactionVelocity,
+                delta24h: deltaSeed ? seededDelta(for: "interaction_velocity") : 0,
+                weight: RiskModel.interactionVelocityWeight
+            ),
+            ExposureFactor(
+                id: "asset_volatility",
+                name: "Asset Volatility Proxy",
+                value: assetVolatilityProxy,
+                delta24h: deltaSeed ? seededDelta(for: "asset_volatility") : 0,
+                weight: RiskModel.assetVolatilityWeight
+            ),
+            ExposureFactor(
+                id: "counterparty_risk",
+                name: "Counterparty Risk",
+                value: counterpartyRisk,
+                delta24h: deltaSeed ? seededDelta(for: "counterparty_risk") : 0,
+                weight: RiskModel.counterpartyRiskWeight
+            )
+        ]
+    }
+
+    func computeExposureSnapshot() -> ExposureSnapshot {
+        let factors = canonicalExposureFactors()
+        let index = RiskModel.computeExposureIndex(from: factors)
+        let tier = RiskModel.tier(for: index)
+        return ExposureSnapshot(
+            date: Date(),
+            exposureIndex: index,
+            tier: tier,
+            factors: factors
+        )
+    }
+
+    func exposureFactors(currentIndex: Int) -> [ExposureFactor] {
+        let baseFactors = canonicalExposureFactors()
+
+        let computed = RiskModel.computeExposureIndex(from: baseFactors)
+        let adjustment = currentIndex - computed
+        if adjustment == 0 { return baseFactors }
+
+        return baseFactors.enumerated().map { index, factor in
+            let adjustedValue = min(100, max(0, factor.value + adjustment / max(1, baseFactors.count - index)))
+            return ExposureFactor(
+                id: factor.id,
+                name: factor.name,
+                value: adjustedValue,
+                delta24h: factor.delta24h,
+                weight: factor.weight
+            )
+        }
+    }
+
+    func exposureSnapshots(range: RiskHistoryRange, currentIndex: Int) -> [ExposureSnapshot] {
+        let dayCount = max(2, range.dayCount)
+        let calendar = Calendar.current
+        let walletSeed = deterministicSeed()
+        let baselineFactors = exposureFactorsLive.isEmpty ? computeExposureSnapshot().factors : exposureFactorsLive
+        let baseIndex = RiskModel.computeExposureIndex(from: baselineFactors)
+        let startIndex = max(8, min(95, baseIndex - 6))
+
+        return (0..<dayCount).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -(dayCount - 1 - offset), to: Date()) else { return nil }
+            let drift = Int((Double(offset) / Double(max(dayCount - 1, 1))) * Double(currentIndex - startIndex))
+            let noise = seededNoise(seed: walletSeed, salt: offset) % 5 - 2
+            let snapshotIndex = min(100, max(0, startIndex + drift + noise))
+
+            let factors = baselineFactors.enumerated().map { idx, factor in
+                let valueNoise = seededNoise(seed: walletSeed, salt: offset * 17 + idx * 13) % 7 - 3
+                let value = min(100, max(0, factor.value + valueNoise))
+                let delta = Double((seededNoise(seed: walletSeed, salt: offset * 11 + idx * 29) % 41) - 20) / 10.0
+                return ExposureFactor(
+                    id: factor.id,
+                    name: factor.name,
+                    value: value,
+                    delta24h: delta,
+                    weight: factor.weight
+                )
+            }
+
+            let computedIndex = RiskModel.computeExposureIndex(from: factors)
+            return ExposureSnapshot(
+                date: date,
+                exposureIndex: min(100, max(0, (computedIndex + snapshotIndex) / 2)),
+                tier: RiskModel.tier(for: min(100, max(0, (computedIndex + snapshotIndex) / 2))),
+                factors: factors
+            )
+        }
+    }
+
     func persistNotificationPreference() {
         defaults.set(notificationsEnabled, forKey: notificationsEnabledKey)
+        updateProtectionSettings { settings in
+            settings.alertsEnabled = notificationsEnabled
+        }
     }
 
     func persistHighRiskAlertPreference() {
         defaults.set(notifyHighRiskOnly, forKey: notifyHighRiskOnlyKey)
+        updateProtectionSettings { settings in
+            settings.highRiskOnly = notifyHighRiskOnly
+        }
     }
 
     func persistAutoScanPreference() {
         defaults.set(autoScanEnabled, forKey: autoScanEnabledKey)
         startAutoScanIfNeeded()
+    }
+
+    func updateProtectionSettings(_ update: (inout ProtectionSettings) -> Void) {
+        var next = protectionSettings
+        update(&next)
+        guard next != protectionSettings else { return }
+
+        protectionSettings = next
+        notificationsEnabled = next.alertsEnabled
+        notifyHighRiskOnly = next.highRiskOnly
+        defaults.set(next.alertsEnabled, forKey: notificationsEnabledKey)
+        defaults.set(next.highRiskOnly, forKey: notifyHighRiskOnlyKey)
+        saveProtectionSettings(next)
+
+        if autoScanEnabled {
+            startAutoScanIfNeeded()
+        }
     }
 
     func connectWallet() {
@@ -552,9 +753,25 @@ final class DashboardViewModel: ObservableObject {
                 statusMessage = "Baseline snapshot created. Next refresh compares deltas."
             }
             scanLog("refresh req=\(requestID) success tokens=\(newEvents.count) nfts=\(nftCounts.total)")
+            let snapshot = computeExposureSnapshot()
+            exposureIndex = snapshot.exposureIndex
+            exposureTier = snapshot.tier
+            exposureFactorsLive = snapshot.factors
+            defaults.set(snapshot.exposureIndex, forKey: lastExposureIndexKey)
+            appendIntelligenceEvent(
+                IntelligenceEvent(
+                    type: .scan,
+                    title: "Scan complete",
+                    detail: "Processed \(newEvents.count) event\(newEvents.count == 1 ? "" : "s").",
+                    severity: .info
+                )
+            )
+            evaluateProtectionPolicyAfterScan()
 
-            if notificationsEnabled {
-                let eventsForAlert = notifyHighRiskOnly
+            // ProtectionSettings is the policy gate; notificationManager wiring remains unchanged.
+            if protectionSettings.alertsEnabled && notificationsEnabled {
+                let highRiskOnlyEnabled = effectiveProtectionSettings().highRiskOnly
+                let eventsForAlert = highRiskOnlyEnabled
                     ? newEvents.filter { $0.risk.level == .high }
                     : newEvents
                 await notificationManager.notifyNewAirdrops(eventsForAlert)
@@ -989,6 +1206,57 @@ final class DashboardViewModel: ObservableObject {
         return "Delayed sync"
     }
 
+    var monitoringIndicator: MonitoringIndicator {
+        let isScanFailure: Bool = {
+            if case .failure = scanStatus { return true }
+            return false
+        }()
+
+        if latestRefreshHardFailure || showActionableScanFailure || isScanFailure {
+            return .degraded
+        }
+
+        guard let lastCheckedAt else { return .stale }
+        return Date().timeIntervalSince(lastCheckedAt) <= 120 ? .live : .stale
+    }
+
+    var protectionStatusLine: String {
+        switch protectionLevel {
+        case .passive:
+            return "Baseline posture active"
+        case .alerting:
+            return "Elevated surveillance enabled"
+        case .hardened:
+            return "Hardened oversight posture"
+        }
+    }
+
+    func setProtectionLevel(_ level: ProtectionLevel) {
+        guard protectionLevel != level else { return }
+        protectionLevel = level
+        defaults.set(level.rawValue, forKey: protectionLevelKey)
+    }
+
+    func effectiveProtectionSettings() -> ProtectionSettings {
+        var effective = protectionSettings
+        guard protectionLevel == .hardened else { return effective }
+        effective.exposureDeltaNotifyPercent = max(1, effective.exposureDeltaNotifyPercent - 1)
+        effective.criticalThreshold = max(60, effective.criticalThreshold - 5)
+        effective.autoScanIntervalMinutes = min(30, effective.autoScanIntervalMinutes)
+        return effective
+    }
+
+    func runTestAlertPolicyEvent() {
+        appendIntelligenceEvent(
+            IntelligenceEvent(
+                type: .policy,
+                title: "Policy Triggered: Test alert executed",
+                detail: "Operator test alert executed from Protection Settings.",
+                severity: .info
+            )
+        )
+    }
+
     var securityScore: Int {
         var score = 34
         if hasValidWalletAddress { score += 20 }
@@ -1100,12 +1368,130 @@ final class DashboardViewModel: ObservableObject {
         persistHiddenMints()
     }
 
+    func evidenceItems(for factorID: String) -> [EvidenceItem] {
+        let seed = deterministicSeed()
+        let factorSalt = factorID.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        let now = Date()
+
+        func itemTime(_ index: Int) -> Date {
+            let seconds = 900 + (seededNoise(seed: seed, salt: factorSalt + (index * 53)) % 28_800)
+            return now.addingTimeInterval(TimeInterval(-seconds))
+        }
+
+        func severityFor(_ index: Int) -> EvidenceSeverity {
+            let raw = seededNoise(seed: seed, salt: factorSalt + (index * 19)) % 100
+            switch raw {
+            case ..<42: return .low
+            case ..<76: return .elevated
+            default: return .critical
+            }
+        }
+
+        switch factorID {
+        case "contract_risk":
+            let contracts = [
+                "9f2A...kP8q",
+                "7MnX...2Qvb",
+                "D6XL...5YS8",
+                "Bk1P...9tN4"
+            ]
+            return contracts.enumerated().map { index, contract in
+                EvidenceItem(
+                    id: "\(factorID)_\(index)",
+                    title: contract,
+                    subtitle: "Contract interaction risk",
+                    severity: severityFor(index),
+                    timestamp: itemTime(index)
+                )
+            }
+        case "liquidity_exposure":
+            let pools = [
+                "Raydium SOL/USDC",
+                "Orca mSOL/SOL",
+                "Meteora DLMM",
+                "Jupiter Route Pool"
+            ]
+            return pools.enumerated().map { index, pool in
+                let concentration = 18 + (seededNoise(seed: seed, salt: factorSalt + (index * 31)) % 57)
+                return EvidenceItem(
+                    id: "\(factorID)_\(index)",
+                    title: pool,
+                    subtitle: "Concentration \(concentration)%",
+                    severity: severityFor(index),
+                    timestamp: itemTime(index)
+                )
+            }
+        case "behavioral_signals":
+            let anomalies = [
+                "Interaction velocity spike",
+                "Novel contract detected",
+                "Execution timing anomaly",
+                "Risk acceleration crossover"
+            ]
+            return anomalies.enumerated().map { index, anomaly in
+                EvidenceItem(
+                    id: "\(factorID)_\(index)",
+                    title: anomaly,
+                    subtitle: "Behavioral anomaly signal",
+                    severity: severityFor(index),
+                    timestamp: itemTime(index)
+                )
+            }
+        default:
+            let counterparties = [
+                "Jupiter Aggregator",
+                "Meteora DLMM",
+                "Unknown Router v2",
+                "OpenBook Market"
+            ]
+            return counterparties.enumerated().map { index, counterparty in
+                EvidenceItem(
+                    id: "\(factorID)_\(index)",
+                    title: counterparty,
+                    subtitle: "Counterparty trust signal",
+                    severity: severityFor(index),
+                    timestamp: itemTime(index)
+                )
+            }
+        }
+    }
+
     private func persistFavorites() {
         defaults.set(Array(favoriteMints).sorted(), forKey: favoriteMintsKey)
     }
 
     private func persistHiddenMints() {
         defaults.set(Array(hiddenMints).sorted(), forKey: hiddenMintsKey)
+    }
+
+    private func saveProtectionSettings(_ settings: ProtectionSettings) {
+        guard let data = try? JSONEncoder().encode(settings) else {
+            scanLog("failed to encode protection settings")
+            return
+        }
+        defaults.set(data, forKey: protectionSettingsKey)
+    }
+
+    private static func loadProtectionSettings(
+        defaults: UserDefaults,
+        key: String,
+        legacyAlertsEnabled: Bool,
+        legacyHighRiskOnly: Bool
+    ) -> ProtectionSettings {
+        if let data = defaults.data(forKey: key),
+           let decoded = try? JSONDecoder().decode(ProtectionSettings.self, from: data) {
+            return decoded
+        }
+
+        return .default(
+            alertsEnabled: legacyAlertsEnabled,
+            highRiskOnly: legacyHighRiskOnly,
+            delivery: .inApp,
+            anomalySensitivity: .standard,
+            exposureDeltaNotifyPercent: 3,
+            criticalThreshold: 76,
+            autoScanIntervalMinutes: 60
+        )
     }
 
     private func eventSort(lhs: AirdropEvent, rhs: AirdropEvent) -> Bool {
@@ -1115,6 +1501,86 @@ final class DashboardViewModel: ObservableObject {
             return leftFavorite && !rightFavorite
         }
         return lhs.detectedAt > rhs.detectedAt
+    }
+
+    private func appendIntelligenceEvent(_ event: IntelligenceEvent) {
+        if event.type == .policy,
+           let latest = intelligenceFeedEvents.first,
+           latest.type == .policy,
+           latest.title == event.title,
+           latest.detail == event.detail {
+            scanLog("policy event deduped (back-to-back): \(event.title)")
+            return
+        }
+        intelligenceFeedEvents.insert(event, at: 0)
+        if intelligenceFeedEvents.count > 100 {
+            intelligenceFeedEvents = Array(intelligenceFeedEvents.prefix(100))
+        }
+    }
+
+    private func evaluateProtectionPolicyAfterScan() {
+        let currentExposureIndex = exposureIndex
+        let effective = effectiveProtectionSettings()
+        let tier = RiskModel.tier(for: currentExposureIndex)
+        let previousIndex = lastEvaluatedExposureIndex ?? lastExposureIndexForPolicy
+        lastExposureIndexForPolicy = currentExposureIndex
+
+        let deltaPercent: Double
+        if let previousIndex, previousIndex > 0 {
+            deltaPercent = ((Double(currentExposureIndex - previousIndex) / Double(previousIndex)) * 100.0).magnitude
+        } else {
+            deltaPercent = 0
+        }
+
+        let highRiskSignal = tier == .elevated || tier == .critical
+        let now = Date()
+
+        let crossedCriticalThreshold = currentExposureIndex >= effective.criticalThreshold &&
+            (previousIndex == nil || (previousIndex ?? 0) < effective.criticalThreshold)
+        let criticalCooldownElapsed = lastCriticalPolicyTriggerAt == nil ||
+            now.timeIntervalSince(lastCriticalPolicyTriggerAt ?? .distantPast) >= 60 * 60
+        if effective.alertsEnabled &&
+            (!effective.highRiskOnly || highRiskSignal) &&
+            (crossedCriticalThreshold || (currentExposureIndex >= effective.criticalThreshold && criticalCooldownElapsed)) {
+            appendIntelligenceEvent(
+                IntelligenceEvent(
+                    type: .policy,
+                    title: "Policy Triggered: Critical threshold reached",
+                    detail: "Exposure Index \(currentExposureIndex) (critical threshold: \(effective.criticalThreshold)).",
+                    severity: .critical
+                )
+            )
+            lastCriticalPolicyTriggerAt = now
+            defaults.set(now, forKey: lastCriticalPolicyTriggerAtKey)
+            scanLog("policy event critical threshold triggered index=\(currentExposureIndex)")
+        }
+
+        let deltaCooldownElapsed = lastDeltaPolicyTriggerAt == nil ||
+            now.timeIntervalSince(lastDeltaPolicyTriggerAt ?? .distantPast) >= 30 * 60
+        if effective.alertsEnabled &&
+            previousIndex != nil &&
+            deltaPercent >= Double(effective.exposureDeltaNotifyPercent) &&
+            (!effective.highRiskOnly || highRiskSignal) &&
+            deltaCooldownElapsed {
+            appendIntelligenceEvent(
+                IntelligenceEvent(
+                    type: .policy,
+                    title: "Policy Triggered: Exposure delta exceeded",
+                    detail: "Delta +\(String(format: "%.1f", deltaPercent))% (threshold: \(effective.exposureDeltaNotifyPercent)%).",
+                    severity: .warning
+                )
+            )
+            lastDeltaPolicyTriggerAt = now
+            defaults.set(now, forKey: lastDeltaPolicyTriggerAtKey)
+            scanLog("policy event delta triggered delta=\(String(format: "%.2f", deltaPercent))")
+        }
+
+        if !effective.alertsEnabled {
+            scanLog("policy alerts disabled by settings")
+        }
+
+        lastEvaluatedExposureIndex = currentExposureIndex
+        defaults.set(currentExposureIndex, forKey: lastEvaluatedExposureIndexKey)
     }
 
     private func startAutoScanIfNeeded() {
@@ -1128,7 +1594,10 @@ final class DashboardViewModel: ObservableObject {
         scanLog("auto-scan enabled")
 
         autoScanTask = Task { [weak self] in
-            var backoffSeconds: UInt64 = 600
+            guard let self else { return }
+            let effectiveSettings = self.effectiveProtectionSettings()
+            let configuredBaseInterval = UInt64(max(10, effectiveSettings.autoScanIntervalMinutes) * 60)
+            var backoffSeconds = configuredBaseInterval
             var consecutiveFailures = 0
             let maxConsecutiveFailures = 3
             while !Task.isCancelled {
@@ -1138,7 +1607,6 @@ final class DashboardViewModel: ObservableObject {
                     break
                 }
 
-                guard let self else { break }
                 guard AddressValidator.isLikelySolanaAddress(self.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)) else {
                     await MainActor.run {
                         self.scanLog("auto-scan skipped (invalid wallet)")
@@ -1150,9 +1618,9 @@ final class DashboardViewModel: ObservableObject {
                 let ok = await self.startScan(reason: "auto_scan")
                 await MainActor.run {
                     if ok {
-                        backoffSeconds = 600
+                        backoffSeconds = configuredBaseInterval
                         consecutiveFailures = 0
-                        self.scanLog("auto-scan success; next interval=600s")
+                        self.scanLog("auto-scan success; next interval=\(configuredBaseInterval)s")
                     } else if self.latestRefreshHardFailure {
                         consecutiveFailures += 1
                         backoffSeconds = min(backoffSeconds * 2, 3_600)
@@ -1162,8 +1630,8 @@ final class DashboardViewModel: ObservableObject {
                             self.statusMessage = "Auto-scan paused after repeated failures. Tap Refresh to retry."
                         }
                     } else {
-                        backoffSeconds = 600
-                        self.scanLog("auto-scan skipped/no-op; next interval=600s")
+                        backoffSeconds = configuredBaseInterval
+                        self.scanLog("auto-scan skipped/no-op; next interval=\(configuredBaseInterval)s")
                     }
                 }
                 if consecutiveFailures >= maxConsecutiveFailures {
@@ -1341,6 +1809,25 @@ final class DashboardViewModel: ObservableObject {
         } catch {
             return maintenanceMode
         }
+    }
+
+    private func deterministicSeed() -> UInt64 {
+        let trimmed = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let input = trimmed.isEmpty ? "no-wallet" : trimmed
+        let digest = SHA256.hash(data: Data(input.utf8))
+        return digest.prefix(8).reduce(0) { ($0 << 8) | UInt64($1) }
+    }
+
+    private func seededNoise(seed: UInt64, salt: Int) -> Int {
+        var state = seed &+ UInt64(bitPattern: Int64(salt * 1_103_515_245 &+ 12_345))
+        state = 6364136223846793005 &* state &+ 1442695040888963407
+        return Int(state % 10_000)
+    }
+
+    private func seededDelta(for key: String) -> Double {
+        let salt = key.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        let raw = seededNoise(seed: deterministicSeed(), salt: salt) % 41
+        return Double(raw - 20) / 10.0
     }
 
     private static func hashWallet(_ wallet: String) -> String {
@@ -1566,5 +2053,9 @@ private struct NoopWalletNFTCountService: WalletNFTCounting {
 
     func fetchDetailedCounts(wallet: String) async throws -> NFTCountFetchResult {
         NFTCountFetchResult(counts: .zero, diagnostics: .zero)
+    }
+
+    func fetchNFTItems(owner: String) async -> [NFTItem] {
+        []
     }
 }

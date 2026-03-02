@@ -13,9 +13,9 @@ struct TrendChip: View {
     }
 
     private var chipColor: Color {
-        if isNeutral { return DesignSystem.Colors.textSecondary }
+        if isNeutral { return ThemeTokens.Text.secondary }
         // Up-risk = critical, down-risk = safe
-        return isRiskIncrease ? DesignSystem.Colors.danger : DesignSystem.Colors.safe
+        return isRiskIncrease ? ThemeTokens.Accent.critical : ThemeTokens.Accent.green
     }
 
     private var label: String {
